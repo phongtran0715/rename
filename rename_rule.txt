@@ -1,0 +1,98 @@
+=====> RENAME RULES <=====
+
+I. Common rule:
+Naming convention:
+A-B-C-D
+A = language (AR, EN, FR, ES)
+B = team ((RT NG EG CT SH ST))
+C = description
+D = ddmmyy
+
+- Script needs to remove illegal characters. only alphabet, numbers and underscores are allows.
+- Hypen (-) should be only used as divider so not more than 4 in one name
+- All spaces need to be removed
+- If countries from countries.text is in filename position should change
+- File name should always be ALL CAPS. lower case should be changed to uppercase
+
+- Neglect keyword :
+XX, XXX, V1, V2, V3, NA, V4, FYT, FTY, disregard, SHORT,SQ, SQUARE, SAKHR,
+KHEIRA, TAREK, TABISH, ZACH, SUMMAQAH, HAMAMOU, ITANI, YOMNA, Copy, Copied (all cases)
+Any 2 char abbreviation if in between -XX-
+Anything attached to date should be neglected (ES-NG-INTELLIGENTBEES-070317UG.zip)
+Single chracters at the end of filename (ES-RT-DISCRIMINACIOOFNCHILE-150217 4.zip)
+Copy in file name or copyx copy x (ES-RT-MÈXICO-BLUEPARROT-160117 copy.zip / copy 2.zip)
+Remove single_ or _single
+Every combination of XX needs to be removed (XX, XX, XXX etc)
+2 or more XX (XXX, XXXX, XXXXX) should be neglected
+
+- Name can have maximum 4 x - in one name (A-B-C-D).
+- A is always 2 char (AR, EN, FR,ES) B also (RT, CT etc)
+and if C has more - then replace with _ as long as it ends with -DDMMYY
+- Only allowed 2 chars are in the A-B part of the filename
+- If there's country at the beginning , every -, _ or space needs to be removed
+- Same file renames -> delete the smaller one
+
+-------------------------------
+II. Language rule:
+- Script should ask on run language (A) of the files so it can append missing languages
+- Wrong labels could be ARA, ESP or SPA which should change to AR (ARA) or ES (ESP, SPA)
+- Just in case folder does not have a language we have to inject it.
+Script needs to know what language i'll be processing. EN, AR, FR, ES by using option -l [language]
+(Ex:  RT-BLABLA-DDMMYY -> AR-RT-BLABLA-DDMMYY)
+
+-------------------------------
+III. Team rule
+- RT-60 should change to RT
+- PL -> NG / VJ -> NG / RT-60 -> RT
+- If team is absent use RT as team
+- If team is absent but VJ is in filename , team should be NG
+- EN-EN should be renamed to EN-EG
+- Team B in A-B is never one character , always 2
+- Season/Epise ('1x04')
+If detect series/episode (1x07 0x1x7) etc also make sure team always is SH, never RT
+when nxn is detected this is never RT but always SH.
+Snxn is always seperated with _ and showname MM, TP needs to be included
+
+
+-------------------------------
+III. Date rule :
+- ddmmyy should always be at end
+- Date should always be DDMMYY 05032016 -> 050316 300615 -> 063015
+- If original title has no date we should look at last opened date and add -ddmmyy
+
+
+-------------------------------
+IV. Script option :
+- When run with -c option : show the new name without .zip (extention)
+- The rule is it deletes the smallest one.
+show (*** deleted *** in the list when run with -c option)
+
+ARA-060416-XX-CT-NATOEXPLAINED  
+v5: AR-RT-CTTOEXPLAINED-060416
+but it's not a RT it should be CT. you do that all the time. i think the XX might cause this
+
+it should be-> AR-CT-NATOEXPLAINED-060416
+
+
+can you check the CT team rule?
+
+ARA-060416-XX-CT-ARREST
+AR-CT-ARREST-060416
+correct!
+
+ARA-060416-XX-CT-NATOEXPLAINED
+AR-RT-CTTOEXPLAINED-060416
+-> AR-CT-NATOEXPLAINED-060416
+
+
+
+that will conclude the major renaming part of the script but i was wondering since you're able to get time of last access from
+within th zip file. are you able to check if fit has certain folders ? looking to find the folder that has the name of the zip file
+
+zip file name "ES-RT-COLOMBIA_ATENTADO-200217"
+
+zip file folder structure would be something like "/mnt/restore/XXXX/XXXX/ES-RT-COLOMBIA_ATENTADO-200217"
+
+i'm looking to see of it's possible to check if there 's a folder cuts or exports one more level down :
+/mnt/restore/XXXX/XXXX/ES-RT-COLOMBIA_ATENTADO-200217/CUTS
+/mnt/restore/XXXX/XXXX/ES-RT-COLOMBIA_ATENTADO-200217EXPORTS
