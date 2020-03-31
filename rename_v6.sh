@@ -5,6 +5,8 @@ languages=("AR" "EN" "FR" "ES")
 teams=("RT", "NG" "EG" "CT" "SH" "ST")
 neglects_keyword=("V1" "V2" "V3" "V4" "-NA-" "FYT" "FTY" "SHORT" "SQUARE" "SAKHR"
   "KHEIRA" "TAREK" "TABISH" "ZACH" "SUMMAQAH" "HAMAMOU" "ITANI" "YOMNA" "COPY" "COPIED")
+suffix_lists=("SUB" "SUBS" "FINAL" "CLEAN" "TW" "FB" "YT")
+sub_dir_lists=("CUT" "CUTS" "_CUTS" "EXPORT" "EXPORTS" "EXPORTS_" "_EXPORT")
 input_type=0 # 0: file / 1: folder
 function DEBUG()
 {
@@ -41,6 +43,16 @@ then
    echo "Some or all of the parameters are empty";
    helpFunction
 fi
+
+is_suffix(){
+  local data="$1"
+  for i in "${!suffix_lists[@]}";do
+    if [[ "$data" == "${suffix_lists[$i]}" ]];then
+      return 0 #true
+    fi
+  done
+  return 1 #false
+}
 
 correct_desc_info(){
   local desc=$1
@@ -89,6 +101,7 @@ correct_desc_info(){
 order_element(){
   local old_name="$1"
   local name="$2"
+  local path="$3"
   lang=""
   team=""
   desc=""
@@ -130,34 +143,25 @@ order_element(){
     fi
     # remove repeated character (XX)
     match=$(echo $value | grep -oE '(X)\1{1,}')
-    if [ ! -z $match ];then
-      value=${value//"$match"/""}
-    fi
-
-    if [ ! -z $value ];then
-      desc+="$value-"
-    fi
+    if [ ! -z $match ];then value=${value//"$match"/""}; fi
+    # get suffix
+    if is_suffix $value;then gsuffix=$value; fi
+    #get desc
+    if [ ! -z $value ];then desc+="$value-"; fi
   done
-
-  if [ -z "$team" ];then
-      team="RT"
-  fi
-  if [ ! -z $gteam ];then
-    team=$gteam
-  fi
+  if [ -z "$team" ];then team="RT"; fi
+  if [ ! -z $gteam ];then team=$gteam; fi
 
   #correct date
   if [ ! -z "$date" ];then
     dd=${date:0:2}
     mm=${date:2:2}
     yy=${date:4:2}
-    if [ $mm -ge 12 ];then
-      date=$mm$dd$yy
-    fi
+    if [ $mm -ge 12 ];then date=$mm$dd$yy; fi
   else
     if [ $input_type -eq 1 ]; then
       #get last time file accessed
-      full_path=$INPUT"/$old_name"
+      full_path=$path"/$old_name"
       epoch_time=$(stat -c "%X" -- "$full_path")
       date=$(date -d @$epoch_time +"%d%m%y")
     else
@@ -166,9 +170,7 @@ order_element(){
   fi
   #remove "-" at the end of desc
   index=$((${#desc} -1))
-  if [ $index -gt 0 ];then
-    desc=${desc:0:index}
-  fi
+  if [ $index -gt 0 ];then desc=${desc:0:index}; fi
   desc=$(correct_desc_info "$desc")
   echo "lang = " $lang >> app.log
   echo "default lang = " $default_lang >> app.log
@@ -180,7 +182,9 @@ order_element(){
   else
     name="$lang"-"$team"-"$desc"-"$date"
   fi
-    echo $name
+
+  if [ ! -z $gsuffix ];then name=$name-$gsuffix;fi
+  echo $name
 }
 
 check_position_replace(){
@@ -216,12 +220,15 @@ remove_blacklist_keyword(){
   name=${name/"XEP"/"X0"}
   name=${name/"RT-60"/"RT"}
   name=${name/"EN-EN"/"EN-EG"}
+  name=${name/"FINAL-SUBS"/"SUBS"}
   echo $name
 }
 
 process_file_name(){
   gteam=""
+  gsuffix=""
   local old_name="$1"
+  local path="$2"
   local name=$old_name
   #Remove .extension
   if [[ "$name" == *"."* ]]; then
@@ -263,10 +270,8 @@ process_file_name(){
   DEBUG echo "005 : $name"
 
   #reorder element
-  name=$(order_element "$old_name" "$name")
-  if [ ! -z ${ext+x} ]; then
-    name=$name".$ext"
-  fi
+  name=$(order_element "$old_name" "$name" "$path")
+  if [ ! -z ${ext+x} ]; then name=$name".$ext"; fi
   DEBUG echo "006 : $name"
   echo $name
 }
@@ -279,15 +284,11 @@ process_file(){
     filename=$(echo $(basename "INPUT"))
   fi
   output_path="$(dirname "$INPUT")/$filename"".csv"
-  if [[ $mode == "TEST" ]];then
-    echo "OLD NAME,NEW NAME" > $output_path
-  fi
+  if [[ $mode == "TEST" ]];then echo "OLD NAME,NEW NAME" > $output_path; fi
 
   while IFS= read -r line
   do
-    if [ -z "$line" ];then
-      continue
-    fi
+    if [ -z "$line" ];then continue; fi
     old_name="$line"
     new_name=$(process_file_name "$old_name")
     echo "Check ("$count") : " "$old_name" " -> " "$new_name"
@@ -301,55 +302,59 @@ process_folder(){
   parent_dir=$(dirname "$INPUT")
   base_name=$(basename "$INPUT")
   output_path=$parent_dir/$base_name.csv
-  if [[ $mode == "TEST" ]];then
-    echo "OLD NAME,NEW NAME" > $output_path
-  fi
+  if [[ $mode == "TEST" ]];then echo "OLD NAME,NEW NAME" > $output_path; fi
 
-  for f in $INPUT/*; do
-    if [ -f "$f" ]; then
-      old_name=$(basename -- "$f")
-      new_name=$(process_file_name "$old_name")
-      old_file="$INPUT/$old_name"
-      new_file="$INPUT/$new_name"
-      if [ -f "$new_file" ];then
-        existed_file_size=$(stat -c%s "$new_file")
-        file_size=$(stat -c%s "$old_file")
-        if [ $file_size -gt $existed_file_size ];then
-          if [[ $mode == "RUN" ]]; then
-            rm -f "$new_file"
-            mv -f "$old_file" "$new_file" > /dev/null
+  #check all sub folder
+  for d in $(find "$INPUT" -maxdepth 1 -type d)
+  do
+    origin_dirname=$(basename $d)
+    # convert dirname to upercase
+    up_dirname=$(echo ${origin_dirname^^})
+    # check dirname in sub folder list
+    if [[ "${sub_dir_lists[@]}" =~ "$up_dirname" ]]; then
+      echo "Sub dirname : $origin_dirname"
+      echo "Full dirname : $d"
+      for f in "$d/"*; do
+        if [ -f "$f" ]; then
+          old_name=$(basename -- "$f")
+          new_name=$(process_file_name "$old_name" "$d")
+          old_file="$d/$old_name"
+          new_file="$d/$new_name"
+          if [ -f "$new_file" ];then
+            existed_file_size=$(stat -c%s "$new_file")
+            file_size=$(stat -c%s "$old_file")
+            if [ $file_size -gt $existed_file_size ];then
+              if [[ $mode == "RUN" ]]; then
+                rm -f "$new_file"
+                mv -f "$old_file" "$new_file" > /dev/null
+              fi
+              echo "*** deleted *** file : $new_file - Size : $((file_size / 1024 / 1024))  Mb"
+            elif [ $file_size -lt $existed_file_size ];then
+              if [[ $mode == "RUN" ]]; then rm -f "$old_file"; fi
+              echo "*** deleted *** file : $old_file - Size : $((file_size / 1024 / 1024))  Mb"
+            else
+              if [[ "$old_name" != "$new_name" ]];then mv -f "$old_file" "$new_file" > /dev/null; fi
+            fi
+          else
+            if [[ $mode == "RUN" ]]; then mv -f "$old_file" "$new_file" > /dev/null; fi
           fi
-          echo "*** deleted *** file : $new_file - Size : $((file_size / 1024 / 1024))  Mb"
-        elif [ $file_size -lt $existed_file_size ];then
-          if [[ $mode == "RUN" ]]; then
-            rm -f "$old_file"
-          fi
-          echo "*** deleted *** file : $old_file - Size : $((file_size / 1024 / 1024))  Mb"
-        else
-          if [[ "$old_name" != "$new_name" ]];then
-            mv -f "$old_file" "$new_file" > /dev/null
-          fi
-        fi
-      else
-        if [[ $mode == "RUN" ]]; then
-          mv -f "$old_file" "$new_file" > /dev/null
-        fi
-      fi
 
-      if [[ $mode == "TEST" ]]; then
-          # Remove extention from file name
-          if [[ "$old_name" == *"."* ]]; then
-            old_name=$(echo $old_name | cut -d '.' -f 1)
-            new_name=$(echo $new_name | cut -d '.' -f 1)
+          if [[ $mode == "TEST" ]]; then
+              # Remove extention from file name
+              if [[ "$old_name" == *"."* ]]; then
+                old_name=$(echo $old_name | cut -d '.' -f 1)
+                new_name=$(echo $new_name | cut -d '.' -f 1)
+              fi
+              echo "Check ("$count") : " "$old_name" " -> " "$new_name"
+              echo "$old_name,$new_name" >> $output_path
+          else
+            echo "Rename ("$count") : " "$old_name" " -> " "$new_name"
           fi
-          echo "Check ("$count") : " "$old_name" " -> " "$new_name"
-          echo "$old_name,$new_name" >> $output_path
-      else
-        echo "Rename ("$count") : " "$old_name" " -> " "$new_name"
-      fi
-      count=$(($count +1))
-    fi
-  done
+          count=$(($count +1))
+        fi
+      done
+        fi
+      done
 }
 
 dummy(){
@@ -370,6 +375,8 @@ main(){
     process_folder
   elif [[ -f $INPUT ]]; then
     echo "$INPUT is a file"
+    echo "This script doesn't support argument as file"
+    exit 1
     input_type=0
     process_file
   else
@@ -378,10 +385,9 @@ main(){
   fi
   # dummy
   echo "=============="
-  if [[ $mode == "TEST" ]];then
-      echo "Output file : " $output_path
-  fi
+  if [[ $mode == "TEST" ]];then echo "Output file : " $output_path; fi
   echo "Bye"
 }
 gteam=""
+gsuffix=""
 main
