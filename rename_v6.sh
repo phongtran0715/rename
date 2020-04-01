@@ -7,7 +7,6 @@ neglects_keyword=("V1" "V2" "V3" "V4" "-NA-" "FYT" "FTY" "SHORT" "SQUARE" "SAKHR
   "KHEIRA" "TAREK" "TABISH" "ZACH" "SUMMAQAH" "HAMAMOU" "ITANI" "YOMNA" "COPY" "COPIED")
 suffix_lists=("SUB" "SUBS" "FINAL" "CLEAN" "TW" "FB" "YT")
 sub_dir_lists=("CUT" "CUTS" "_CUTS" "EXPORT" "EXPORTS" "EXPORTS_" "_EXPORT")
-input_type=0 # 0: file / 1: folder
 function DEBUG()
 {
   [ "$_DEBUG" == "on" ] && $@ || :
@@ -52,6 +51,16 @@ is_suffix(){
     fi
   done
   return 1 #false
+}
+
+is_subdir(){
+ local data="$1"
+  for i in "${!sub_dir_lists[@]}";do
+    if [[ "$data" == "${sub_dir_lists[$i]}" ]];then
+      return 0 #true
+    fi
+  done
+  return 1 #false 
 }
 
 correct_desc_info(){
@@ -159,7 +168,7 @@ order_element(){
     yy=${date:4:2}
     if [ $mm -ge 12 ];then date=$mm$dd$yy; fi
   else
-    if [ $input_type -eq 1 ]; then
+    if [[ $mode == "RUN" ]]; then
       #get last time file accessed
       full_path=$path"/$old_name"
       epoch_time=$(stat -c "%X" -- "$full_path")
@@ -167,6 +176,7 @@ order_element(){
     else
       date="000000"
     fi
+    # date="000000"
   fi
   #remove "-" at the end of desc
   index=$((${#desc} -1))
@@ -224,11 +234,13 @@ remove_blacklist_keyword(){
   echo $name
 }
 
-process_file_name(){
+standardized_name(){
   gteam=""
   gsuffix=""
-  local old_name="$1"
-  local path="$2"
+  local file_path="$1"
+  DEBUG echo "000 : $file_path"
+  local old_name=$(basename "$file_path")
+  local path=$(dirname "$file_path")
   local name=$old_name
   #Remove .extension
   if [[ "$name" == *"."* ]]; then
@@ -276,92 +288,114 @@ process_file_name(){
   echo $name
 }
 
-process_file(){
+check_zip_file(){
+  local file_path="$1"
+  local log_path="$2"
   count=1
-  if [[ "$INPUT" == *"."* ]]; then
-    filename=$(echo $(basename "$INPUT") | cut -f 1 -d '.')
-  else
-    filename=$(echo $(basename "INPUT"))
-  fi
-  output_path="$(dirname "$INPUT")/$filename"".csv"
-  if [[ $mode == "TEST" ]];then echo "OLD NAME,NEW NAME" > $output_path; fi
+  # Rename zip file
+  old_zip_name=$((basename "$file_path") | cut -f 1 -d '.')
+  dir_name=$(dirname "$file_path")
+  new_zip_name=$(standardized_name "$file_path")
+  echo "Zip file : " "$old_zip_name" " -> " "$new_zip_name"
 
-  while IFS= read -r line
-  do
-    if [ -z "$line" ];then continue; fi
-    old_name="$line"
-    new_name=$(process_file_name "$old_name")
-    echo "Check ("$count") : " "$old_name" " -> " "$new_name"
-    echo "$old_name,$new_name" >> $output_path
-    count=$(($count +1))
-  done < "$INPUT"
+  #TODO : read zip content file
+  tmpList=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
+  IFS=$'\n' read -rd '' -a dirs <<<"$tmpList"
+  for d in "${dirs[@]}";do
+    folder=$(echo $(basename "$d"))
+    up_folder=$(echo ${folder^^})
+    if is_subdir $up_folder;then
+      echo "Found importance folder : " $folder
+      # List all file in sub folder
+      tmpList2=$(unzip -Zl "$file_path" "*/$folder/*" | rev| cut -d '/' -f 1 | rev)
+      IFS=$'\n' read -rd '' -a mediaFiles <<<"$tmpList2"
+      for f in "${mediaFiles[@]}";do
+        old_name=$f
+        new_video_name=$(standardized_name "$dir_name/$old_name")
+        echo "File ("$count") : " "$old_name" " -> " "$new_video_name"
+        echo "$old_zip_name,$new_zip_name,$new_video_name" >> $log_path
+        count=$(($count +1))
+      done
+    fi
+  done
 }
 
-process_folder(){
+process_zip_file(){
+  local file_path="$1"
+  local log_path="$2"
+  declare -a sub_folder
   count=1
-  parent_dir=$(dirname "$INPUT")
-  base_name=$(basename "$INPUT")
-  output_path=$parent_dir/$base_name.csv
-  if [[ $mode == "TEST" ]];then echo "OLD NAME,NEW NAME" > $output_path; fi
+  old_zip_name=$(basename "$file_path")
+  dir_name=$(dirname "$file_path")
 
-  #check all sub folder
-  for d in $(find "$INPUT" -maxdepth 1 -type d)
-  do
-    origin_dirname=$(basename $d)
-    # convert dirname to upercase
-    up_dirname=$(echo ${origin_dirname^^})
-    # check dirname in sub folder list
-    if [[ "${sub_dir_lists[@]}" =~ "$up_dirname" ]]; then
-      echo "Sub dirname : $origin_dirname"
-      echo "Full dirname : $d"
-      for f in "$d/"*; do
+  # Read zip content file
+  tmpList=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
+  IFS=$'\n' read -rd '' -a dirs <<<"$tmpList"
+  for d in "${dirs[@]}";do
+    folder=$(echo $(basename "$d"))
+    up_folder=$(echo ${folder^^})
+    if is_subdir $up_folder;then
+      echo "Found importance folder : " $folder
+      sub_folder+=("$folder")
+    fi
+  done
+
+  if [ ${#sub_folder[@]} -gt 0 ];then
+    # unzip
+    rm -rf "/tmp/unzip/"
+    mkdir -p "/tmp/unzip/"
+    unzip -o "$file_path" -d "/tmp/unzip/" > "/tmp/unzip/log"
+    #TODO check unzip status
+    unzip_dir=$(cat "/tmp/unzip/log" | grep -m1 "creating:" | cut -d ' ' -f5-)
+    for i in "${sub_folder[@]}";do
+      for f in "$unzip_dir$i/"*; do
         if [ -f "$f" ]; then
-          old_name=$(basename -- "$f")
-          new_name=$(process_file_name "$old_name" "$d")
-          old_file="$d/$old_name"
-          new_file="$d/$new_name"
-          if [ -f "$new_file" ];then
-            existed_file_size=$(stat -c%s "$new_file")
-            file_size=$(stat -c%s "$old_file")
-            if [ $file_size -gt $existed_file_size ];then
-              if [[ $mode == "RUN" ]]; then
-                rm -f "$new_file"
-                mv -f "$old_file" "$new_file" > /dev/null
-              fi
-              echo "*** deleted *** file : $new_file - Size : $((file_size / 1024 / 1024))  Mb"
-            elif [ $file_size -lt $existed_file_size ];then
-              if [[ $mode == "RUN" ]]; then rm -f "$old_file"; fi
-              echo "*** deleted *** file : $old_file - Size : $((file_size / 1024 / 1024))  Mb"
-            else
-              if [[ "$old_name" != "$new_name" ]];then mv -f "$old_file" "$new_file" > /dev/null; fi
-            fi
-          else
-            if [[ $mode == "RUN" ]]; then mv -f "$old_file" "$new_file" > /dev/null; fi
-          fi
-
-          if [[ $mode == "TEST" ]]; then
-              # Remove extention from file name
-              if [[ "$old_name" == *"."* ]]; then
-                old_name=$(echo $old_name | cut -d '.' -f 1)
-                new_name=$(echo $new_name | cut -d '.' -f 1)
-              fi
-              echo "Check ("$count") : " "$old_name" " -> " "$new_name"
-              echo "$old_name,$new_name" >> $output_path
-          else
-            echo "Rename ("$count") : " "$old_name" " -> " "$new_name"
-          fi
+          old_video_name=$(basename "$f")
+          new_video_name=$(standardized_name "$f")
+          mv -f "$f" "$dir_name"
+          rename_file "$dir_name/$old_video_name" "$dir_name/$new_video_name"
+          echo "File ("$count") : " "$old_video_name" " -> " "$new_video_name"
           count=$(($count +1))
         fi
       done
-        fi
-      done
+    done
+  fi
+  # Rename zip file
+  new_zip_name=$(standardized_name "$file_path")
+
+  rename_file "$dir_name/$old_zip_name" "$dir_name/$new_zip_name"
+  echo "Zip file : " "$old_zip_name" " -> " "$new_zip_name"
+}
+
+rename_file(){
+  local old_file="$1"
+  local new_file="$2"
+  local dir_name=$(dirname "$old_file")
+  if [ -f "$new_file" ];then
+    existed_file_size=$(stat -c%s "$new_file")
+    file_size=$(stat -c%s "$old_file")
+    if [ $file_size -gt $existed_file_size ];then
+      if [[ $mode == "RUN" ]]; then
+        rm -f "$new_file"
+        mv -f "$old_file" "$new_file" > /dev/null
+      fi
+      echo "*** deleted *** file : $new_file - Size : $((file_size / 1024 / 1024))  Mb"
+    elif [ $file_size -lt $existed_file_size ];then
+      if [[ $mode == "RUN" ]]; then rm -f "$old_file"; fi
+      echo "*** deleted *** file : $old_file - Size : $((file_size / 1024 / 1024))  Mb"
+    else
+      if [[ "$old_name" != "$new_name" ]];then mv -f "$old_file" "$new_file" > /dev/null; fi
+    fi
+  else
+    if [[ $mode == "RUN" ]]; then mv -f "$old_file" "$new_file" > /dev/null; fi
+  fi
 }
 
 dummy(){
   echo "" > app.log
-  old_name="ES-RT-ARGENTINA-ARROZCONLECHE-200718.zip"
+  old_name="video - FINAL-SUBS.mp4"
   echo "Old name : $old_name"
-  process_file_name "$old_name"
+  standardized_name "$old_name"
 }
 
 main(){
@@ -369,23 +403,36 @@ main(){
     echo "File $COUNTRY_FILE DOES NOT exists."
     exit 1
   fi
-  if [[ -d $INPUT ]]; then
-    echo "$INPUT is a directory"
-    input_type=1
-    process_folder
-  elif [[ -f $INPUT ]]; then
-    echo "$INPUT is a file"
-    echo "This script doesn't support argument as file"
-    exit 1
-    input_type=0
-    process_file
+  if [[ -d "$INPUT" ]]; then
+    # directory
+    log_path=$(echo $(dirname "$INPUT"))"/"$(echo $(basename "$INPUT")).csv
+    if [[ $mode == "TEST" ]];then echo "OLD NAME,NEW NAME, NEW VIDEO NAME" > $log_path; fi
+    files=$(find "$INPUT" -maxdepth 1 -type f -iname "*.zip")
+    while read file; do
+      if [[ $mode == "TEST" ]];then
+        check_zip_file "$file" "$log_path"
+      else
+        process_zip_file "$file" "$log_path"
+      fi
+      echo
+    done <<< "$files"
+  elif [[ -f "$INPUT" ]]; then
+    # file
+    file_name=$(echo $(basename "$INPUT"))
+    log_path=$(echo $(dirname "$INPUT"))"/"$(echo $file_name | cut -f 1 -d '.')".csv"
+    if [[ $mode == "TEST" ]];then
+      echo "OLD NAME,NEW NAME,NEW VIDEO NAME" > $log_path
+      check_zip_file "$INPUT" "$log_path"
+    else
+      process_zip_file "$INPUT" "$log_path"
+    fi
   else
     echo "$INPUT is not valid"
-    exit 1
+    exit 2
   fi
   # dummy
   echo "=============="
-  if [[ $mode == "TEST" ]];then echo "Output file : " $output_path; fi
+  if [[ $mode == "TEST" ]];then echo "Output file : " $log_path; fi
   echo "Bye"
 }
 gteam=""
