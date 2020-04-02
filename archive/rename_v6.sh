@@ -292,20 +292,22 @@ check_zip_file(){
   local file_path="$1"
   local log_path="$2"
   count=1
+  echo
+  echo "Start to check file :  $file_path"
   # Rename zip file
   old_zip_name=$((basename "$file_path") | cut -f 1 -d '.')
   dir_name=$(dirname "$file_path")
   new_zip_name=$(standardized_name "$file_path")
   echo "Zip file : " "$old_zip_name" " -> " "$new_zip_name"
 
-  #TODO : read zip content file
+  #Read zip content file
   tmpList=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
   IFS=$'\n' read -rd '' -a dirs <<<"$tmpList"
   for d in "${dirs[@]}";do
     folder=$(echo $(basename "$d"))
     up_folder=$(echo ${folder^^})
     if is_subdir $up_folder;then
-      echo "Found importance folder : " $folder
+      echo "Found importance folder : [" $folder "]"
       # List all file in sub folder
       tmpList2=$(unzip -Zl "$file_path" "*/$folder/*" | rev| cut -d '/' -f 1 | rev)
       IFS=$'\n' read -rd '' -a mediaFiles <<<"$tmpList2"
@@ -327,7 +329,8 @@ process_zip_file(){
   count=1
   old_zip_name=$(basename "$file_path")
   dir_name=$(dirname "$file_path")
-
+  echo
+  echo "Start to process file :  $file_path"
   # Read zip content file
   tmpList=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
   IFS=$'\n' read -rd '' -a dirs <<<"$tmpList"
@@ -335,7 +338,7 @@ process_zip_file(){
     folder=$(echo $(basename "$d"))
     up_folder=$(echo ${folder^^})
     if is_subdir $up_folder;then
-      echo "Found importance folder : " $folder
+      echo "Found importance folder : [" $folder "]"
       sub_folder+=("$folder")
     fi
   done
@@ -345,7 +348,11 @@ process_zip_file(){
     rm -rf "/tmp/unzip/"
     mkdir -p "/tmp/unzip/"
     unzip -o "$file_path" -d "/tmp/unzip/" > "/tmp/unzip/log"
-    #TODO check unzip status
+    if [ $? -ne 0 ]; then
+      echo "Unzip file [$file_path] false!"
+      exit 1
+    fi
+
     unzip_dir=$(cat "/tmp/unzip/log" | grep -m1 "creating:" | cut -d ' ' -f5-)
     for i in "${sub_folder[@]}";do
       for f in "$unzip_dir$i/"*; do
@@ -359,6 +366,8 @@ process_zip_file(){
         fi
       done
     done
+  else
+    echo "Not found importance folder !"
   fi
   # Rename zip file
   new_zip_name=$(standardized_name "$file_path")
@@ -384,7 +393,8 @@ rename_file(){
       if [[ $mode == "RUN" ]]; then rm -f "$old_file"; fi
       echo "*** deleted *** file : $old_file - Size : $((file_size / 1024 / 1024))  Mb"
     else
-      if [[ "$old_name" != "$new_name" ]];then mv -f "$old_file" "$new_file" > /dev/null; fi
+      if [[ "$old_file" != "$new_file" ]];then
+        mv -f "$old_file" "$new_file" > /dev/null; fi
     fi
   else
     if [[ $mode == "RUN" ]]; then mv -f "$old_file" "$new_file" > /dev/null; fi

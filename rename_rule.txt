@@ -60,39 +60,24 @@ III. Date rule :
 - Date should always be DDMMYY 05032016 -> 050316 300615 -> 063015
 - If original title has no date we should look at last opened date and add -ddmmyy
 
-
 -------------------------------
 IV. Script option :
 - When run with -c option : show the new name without .zip (extention)
 - The rule is it deletes the smallest one.
 show (*** deleted *** in the list when run with -c option)
 
-ARA-060416-XX-CT-NATOEXPLAINED  
-v5: AR-RT-CTTOEXPLAINED-060416
-but it's not a RT it should be CT. you do that all the time. i think the XX might cause this
+-------------------------------
+V. Unzip rule
+With input is zip file , script will do below things:
+- Check zip file content to find importance folder ("CUT" "CUTS" "_CUTS" "EXPORT" "EXPORTS" "EXPORTS_" "_EXPORT")
+If zip file have importance folder:
+- Unzip
+- Rename all MOV, MXF, MP4 file in importaince
+- Move all moivie file to same folder with zip file
 
-it should be-> AR-CT-NATOEXPLAINED-060416
-
-
-can you check the CT team rule?
-
-ARA-060416-XX-CT-ARREST
-AR-CT-ARREST-060416
-correct!
-
-ARA-060416-XX-CT-NATOEXPLAINED
-AR-RT-CTTOEXPLAINED-060416
--> AR-CT-NATOEXPLAINED-060416
-
-
-
-that will conclude the major renaming part of the script but i was wondering since you're able to get time of last access from
-within th zip file. are you able to check if fit has certain folders ? looking to find the folder that has the name of the zip file
-
-zip file name "ES-RT-COLOMBIA_ATENTADO-200217"
-
-zip file folder structure would be something like "/mnt/restore/XXXX/XXXX/ES-RT-COLOMBIA_ATENTADO-200217"
-
-i'm looking to see of it's possible to check if there 's a folder cuts or exports one more level down :
-/mnt/restore/XXXX/XXXX/ES-RT-COLOMBIA_ATENTADO-200217/CUTS
-/mnt/restore/XXXX/XXXX/ES-RT-COLOMBIA_ATENTADO-200217EXPORTS
+Only process movie file thay have 'sub*' 'final' 'fb' 'facebook' 'yt' 'youtube'
+'tw' 'twitter' 'ig' 'instagram'
+If movie file does not match do not process
+If the file matches the zip file name but doesn't have a suffix add -RAW as the suffix
+If DDMMYY is in file name try to replace with date in zip file name
+If file name matches most of the name an you clean up?
