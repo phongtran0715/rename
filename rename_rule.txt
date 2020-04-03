@@ -80,4 +80,4 @@ Only process movie file thay have 'sub*' 'final' 'fb' 'facebook' 'yt' 'youtube'
 If movie file does not match do not process
 If the file matches the zip file name but doesn't have a suffix add -RAW as the suffix
 If DDMMYY is in file name try to replace with date in zip file name
-If file name matches most of the name an you clean up?
+If file name matches most of the name > clean up file name

@@ -60,7 +60,7 @@ is_subdir(){
       return 0 #true
     fi
   done
-  return 1 #false 
+  return 1 #false
 }
 
 correct_desc_info(){
@@ -111,6 +111,7 @@ order_element(){
   local old_name="$1"
   local name="$2"
   local path="$3"
+  local type="$4"
   lang=""
   team=""
   desc=""
@@ -121,7 +122,6 @@ order_element(){
 
   for i in "${!arr[@]}";do
     value=${arr[$i]}
-    #check has suffix in file name
     #get language
     if [ ${#value} -eq 2 ] && [[ "${languages[@]}" =~ "$value" ]]; then
       lang=$value
@@ -155,7 +155,7 @@ order_element(){
     match=$(echo $value | grep -oE '(X)\1{1,}')
     if [ ! -z $match ];then value=${value//"$match"/""}; fi
     # get suffix
-    if is_suffix $value;then gsuffix=$value; fi
+    if is_suffix $value;then echo "$value" > "/tmp/.gsuffix"; fi
     #get desc
     if [ ! -z $value ];then desc+="$value-"; fi
   done
@@ -177,27 +177,46 @@ order_element(){
     else
       date="000000"
     fi
-    # date="000000"
+  fi
+  if [[ $type == "ZIP" ]];then
+    echo "$date" > "/tmp/.gzip_date"
+  else
+    read gzip_date < "/tmp/.gzip_date"
+    if [[ ! -z $gzip_date ]];then date=$gzip_date;fi
   fi
   #remove "-" at the end of desc
   index=$((${#desc} -1))
   if [ $index -gt 0 ];then desc=${desc:0:index}; fi
   desc=$(correct_desc_info "$desc")
-  echo "lang = " $lang >> app.log
-  echo "default lang = " $default_lang >> app.log
+
   if [ -z "$lang" ] && [ ! -z "$default_lang" ];then
     lang="$default_lang"
   fi
   if [ -z "$lang" ];then
-    name="$team"-"$desc"-"$date"
+    name="$team"-"$desc"
   else
-    name="$lang"-"$team"-"$desc"-"$date"
+    name="$lang"-"$team"-"$desc"
+  fi
+  if [[ $type == "MOVIE" ]];then
+    #Check matched between zip name and file name
+    read gzip_name < "/tmp/.gzip_name"
+    if [[ "$gzip_name" =~ "$name" ]] || [[ "$name" =~ "$gzip_name" ]];then
+      name="$gzip_name"
+    fi
+  else
+    echo "$name" > "/tmp/.gzip_name"
   fi
 
-  if [ ! -z $gsuffix ];then
-    name=$name-$gsuffix
-  else
-    name=$name"-RAW"
+  #append date
+  name="$name"-"$date"
+  #append suffix if type is movie
+  if [[ $type == "MOVIE" ]];then
+    read gsuffix < "/tmp/.gsuffix"
+    if [ ! -z $gsuffix ];then
+      name=$name-$gsuffix
+    else
+      name=$name"-RAW"
+    fi
   fi
   echo $name
 }
@@ -241,8 +260,13 @@ remove_blacklist_keyword(){
 
 standardized_name(){
   gteam=""
-  gsuffix=""
+  echo "" > "/tmp/.gsuffix"
   local file_path="$1"
+  local type="$2"
+  if [[ $type == "ZIP" ]];then
+    echo "" > "/tmp/.gzip_date"
+    echo "" > "/tmp/.gzip_name"
+  fi
   DEBUG echo "000 : $file_path"
   local old_name=$(basename "$file_path")
   local path=$(dirname "$file_path")
@@ -287,7 +311,7 @@ standardized_name(){
   DEBUG echo "005 : $name"
 
   #reorder element
-  name=$(order_element "$old_name" "$name" "$path")
+  name=$(order_element "$old_name" "$name" "$path" "$type")
   if [ ! -z ${ext+x} ]; then name=$name".$ext"; fi
   DEBUG echo "006 : $name"
   echo $name
@@ -298,12 +322,12 @@ check_zip_file(){
   local log_path="$2"
   count=1
   echo
-  echo "Start to check file :  $file_path"
+  echo "Zip file : $file_path"
   # Rename zip file
   old_zip_name=$((basename "$file_path") | cut -f 1 -d '.')
+  new_zip_name=$(standardized_name "$file_path" "ZIP" | cut -f 1 -d '.')
   dir_name=$(dirname "$file_path")
-  new_zip_name=$(standardized_name "$file_path")
-  echo "Zip file : " "$old_zip_name" " -> " "$new_zip_name"
+  echo "$old_zip_name" " -> " "$new_zip_name"
 
   #Read zip content file
   tmpList=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
@@ -317,11 +341,22 @@ check_zip_file(){
       tmpList2=$(unzip -Zl "$file_path" "*/$folder/*" | rev| cut -d '/' -f 1 | rev)
       IFS=$'\n' read -rd '' -a mediaFiles <<<"$tmpList2"
       for f in "${mediaFiles[@]}";do
-        old_name=$f
-        new_video_name=$(standardized_name "$dir_name/$old_name")
+        old_video_name=$f
+        echo "File ($count) : $folder/"$(basename $f)
+        new_video_name=$(standardized_name "$dir_name/$old_video_name" "MOVIE")
         #check movie name have suffix or not
-        if [ -z $gsuffix ];then continue; fi
-        echo "File ("$count") : " "$old_name" " -> " "$new_video_name"
+        read gsuffix < "/tmp/.gsuffix"
+        if [ -z "$gsuffix" ];then
+          echo "File don't have valid suffix. Ignored!"
+          continue;
+        fi
+        ext="${f#*.}"
+          if [[ $ext == "mp4" ]] || [[ $ext == "mxf" ]] || [[ $ext == "mov" ]];then
+            echo "$old_video_name" " -> " "$new_video_name"
+            count=$(($count +1))
+          else
+            echo "File isn't video. Ignored!"
+        fi
         echo "$old_zip_name,$new_zip_name,$new_video_name" >> $log_path
         count=$(($count +1))
       done
@@ -335,9 +370,11 @@ process_zip_file(){
   declare -a sub_folder
   count=1
   old_zip_name=$(basename "$file_path")
+  new_zip_name=$(standardized_name "$file_path" "ZIP")
   dir_name=$(dirname "$file_path")
   echo
-  echo "Start to process file :  $file_path"
+  echo "Zip file :  $file_path"
+  echo "$old_zip_name" " -> " "$new_zip_name"
   # Read zip content file
   tmpList=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
   IFS=$'\n' read -rd '' -a dirs <<<"$tmpList"
@@ -364,15 +401,24 @@ process_zip_file(){
     for i in "${sub_folder[@]}";do
       for f in "$unzip_dir$i/"*; do
         if [ -f "$f" ]; then
+          echo "File ($count) : $folder/"$(basename $f)
+          #TODO: only process file matched with file name
           old_video_name=$(basename "$f")
-          new_video_name=$(standardized_name "$f")
-          if [ -z $gsuffix ];then continue; fi
-          ext="${$f#*.}"
+          new_video_name=$(standardized_name "$f" "MOVIE")
+          #check movie name have suffix or not
+          read gsuffix < "/tmp/.gsuffix"
+          if [ -z "$gsuffix" ];then
+            echo "File don't have valid suffix. Ignored!"
+            continue;
+          fi
+          ext="${f#*.}"
           if [[ $ext == "mp4" ]] || [[ $ext == "mxf" ]] || [[ $ext == "mov" ]];then
             mv -f "$f" "$dir_name"
             rename_file "$dir_name/$old_video_name" "$dir_name/$new_video_name"
-            echo "File ("$count") : " "$old_video_name" " -> " "$new_video_name"
+            echo "$old_video_name" " -> " "$new_video_name"
             count=$(($count +1))
+          else
+            echo "File isn't video. Ignored!"
           fi
         fi
       done
@@ -381,10 +427,7 @@ process_zip_file(){
     echo "Not found importance folder !"
   fi
   # Rename zip file
-  new_zip_name=$(standardized_name "$file_path")
-
   rename_file "$dir_name/$old_zip_name" "$dir_name/$new_zip_name"
-  echo "Zip file : " "$old_zip_name" " -> " "$new_zip_name"
 }
 
 rename_file(){
@@ -416,7 +459,7 @@ dummy(){
   echo "" > app.log
   old_name="video - FINAL-SUBS.mp4"
   echo "Old name : $old_name"
-  standardized_name "$old_name"
+  standardized_name "$old_name" "MOVIE"
 }
 
 main(){
@@ -457,5 +500,4 @@ main(){
   echo "Bye"
 }
 gteam=""
-gsuffix=""
 main
