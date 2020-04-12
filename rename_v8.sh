@@ -321,13 +321,14 @@ check_zip_file(){
   local file_path="$1"
   local log_path="$2"
   count=1
-  echo
-  echo "Zip file : $file_path"
+  echo "----------"
   # Rename zip file
   old_zip_name=$((basename "$file_path") | cut -f 1 -d '.')
   new_zip_name=$(standardized_name "$file_path" "ZIP" | cut -f 1 -d '.')
+  echo -e "Zip file : $old_zip_name \t-> $new_zip_name"
   dir_name=$(dirname "$file_path")
   echo "$old_zip_name" " -> " "$new_zip_name"
+  echo "$old_zip_name,$new_zip_name" >> $log_path
 
   #Read zip content file
   tmpList=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
@@ -342,22 +343,21 @@ check_zip_file(){
       IFS=$'\n' read -rd '' -a mediaFiles <<<"$tmpList2"
       for f in "${mediaFiles[@]}";do
         old_video_name=$f
-        echo "File ($count) : $folder/"$(basename $f)
         new_video_name=$(standardized_name "$dir_name/$old_video_name" "MOVIE")
         #check movie name have suffix or not
         read gsuffix < "/tmp/.gsuffix"
         if [ -z "$gsuffix" ];then
-          echo "File don't have valid suffix. Ignored!"
+          echo -e "($count) \t: $old_video_name \t -> File don't have valid suffix. Ignored!"
           continue;
         fi
         ext="${f#*.}"
           if [[ $ext == "mp4" ]] || [[ $ext == "mxf" ]] || [[ $ext == "mov" ]];then
-            echo "$old_video_name" " -> " "$new_video_name"
-            count=$(($count +1))
+            echo -e "($count) \t: $old_video_name \t -> $new_video_name"
           else
-            echo "File isn't video. Ignored!"
+            echo -e "($count) \t: $old_video_name \t -> File isn't video. Ignored!"
         fi
-        echo "$old_zip_name,$new_zip_name,$new_video_name" >> $log_path
+        # echo "$old_zip_name,$new_zip_name,$new_video_name" >> $log_path
+        echo ",,$folder/$new_video_name" >> $log_path
         count=$(($count +1))
       done
     fi
@@ -372,9 +372,8 @@ process_zip_file(){
   old_zip_name=$(basename "$file_path")
   new_zip_name=$(standardized_name "$file_path" "ZIP")
   dir_name=$(dirname "$file_path")
-  echo
-  echo "Zip file :  $file_path"
-  echo "$old_zip_name" " -> " "$new_zip_name"
+  echo "----------"
+  echo -e "Zip file : $old_zip_name \t-> $new_zip_name"
   # Read zip content file
   tmpList=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
   IFS=$'\n' read -rd '' -a dirs <<<"$tmpList"
@@ -382,7 +381,7 @@ process_zip_file(){
     folder=$(echo $(basename "$d"))
     up_folder=$(echo ${folder^^})
     if is_subdir $up_folder;then
-      echo "Found importance folder : [" $folder "]"
+      # echo "Found importance folder : [" $folder "]"
       sub_folder+=("$folder")
     fi
   done
@@ -399,28 +398,28 @@ process_zip_file(){
 
     unzip_dir=$(cat "/tmp/unzip/log" | grep -m1 "creating:" | cut -d ' ' -f5-)
     for i in "${sub_folder[@]}";do
+      echo "Found importance folder : [ $i ]"
       for f in "$unzip_dir$i/"*; do
         if [ -f "$f" ]; then
-          echo "File ($count) : $folder/"$(basename $f)
           #TODO: only process file matched with file name
           old_video_name=$(basename "$f")
           new_video_name=$(standardized_name "$f" "MOVIE")
           #check movie name have suffix or not
           read gsuffix < "/tmp/.gsuffix"
           if [ -z "$gsuffix" ];then
-            echo "File don't have valid suffix. Ignored!"
+            echo -e "($count) \t: $old_video_name \t -> File don't have valid suffix. Ignored!"
             continue;
           fi
           ext="${f#*.}"
           if [[ $ext == "mp4" ]] || [[ $ext == "mxf" ]] || [[ $ext == "mov" ]];then
             mv -f "$f" "$dir_name"
             rename_file "$dir_name/$old_video_name" "$dir_name/$new_video_name"
-            echo "$old_video_name" " -> " "$new_video_name"
-            count=$(($count +1))
+            echo -e "($count) \t: $old_video_name \t -> $new_video_name"
           else
-            echo "File isn't video. Ignored!"
+            echo -e "($count) \t: $old_video_name \t -> File isn't video. Ignored!"
           fi
         fi
+        count=$(($count +1))
       done
     done
   else
@@ -463,6 +462,7 @@ dummy(){
 }
 
 main(){
+  total=0
   if [ ! -f "$COUNTRY_FILE" ]; then
     echo "File $COUNTRY_FILE DOES NOT exists."
     exit 1
@@ -470,7 +470,7 @@ main(){
   if [[ -d "$INPUT" ]]; then
     # directory
     log_path=$(echo $(dirname "$INPUT"))"/"$(echo $(basename "$INPUT")).csv
-    if [[ $mode == "TEST" ]];then echo "OLD NAME,NEW NAME, NEW VIDEO NAME" > $log_path; fi
+    if [[ $mode == "TEST" ]];then echo "OLD ZIP NAME,NEW ZIP NAME, NEW VIDEO NAME" > $log_path; fi
     files=$(find "$INPUT" -maxdepth 1 -type f -iname "*.zip")
     while read file; do
       if [[ $mode == "TEST" ]];then
@@ -478,6 +478,7 @@ main(){
       else
         process_zip_file "$file" "$log_path"
       fi
+      total=$((total+1))
       echo
     done <<< "$files"
   elif [[ -f "$INPUT" ]]; then
@@ -485,11 +486,12 @@ main(){
     file_name=$(echo $(basename "$INPUT"))
     log_path=$(echo $(dirname "$INPUT"))"/"$(echo $file_name | cut -f 1 -d '.')".csv"
     if [[ $mode == "TEST" ]];then
-      echo "OLD NAME,NEW NAME,NEW VIDEO NAME" > $log_path
+      echo "OLD ZIP NAME,NEW ZIP NAME,NEW VIDEO NAME" > $log_path
       check_zip_file "$INPUT" "$log_path"
     else
       process_zip_file "$INPUT" "$log_path"
     fi
+    total=$((total+1))
   else
     echo "$INPUT is not valid"
     exit 2
@@ -497,6 +499,7 @@ main(){
   # dummy
   echo "=============="
   if [[ $mode == "TEST" ]];then echo "Output file : " $log_path; fi
+  echo "Number zip file : $total"
   echo "Bye"
 }
 gteam=""
