@@ -1,5 +1,6 @@
 import sys
 import os
+import zipfile
 
 if len(sys.argv) < 2 :
   print("Missing input file argument")
@@ -17,14 +18,9 @@ if not os.path.exists(directory):
 count = 0
 with open(filepath) as fp:
   for file_name in fp:
-    file_name = file_name.rstrip()
-    # print(file_name)
-    if len(file_name) > 0:
-      try:
-        f= open(os.path.join("TestFolder", file_name),"w+")
-        f.close()
-        count+=1
-      except:
-        pass
+    file_name = directory + "/" +file_name.rstrip() + ".zip"
+    zf = zipfile.ZipFile(file_name, mode='w')
+    zf.close()
+    count+=1
 fp.close()
 print("%d file were created on TestFolder" % (count))

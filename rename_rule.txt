@@ -81,3 +81,12 @@ If movie file does not match do not process
 If the file matches the zip file name but doesn't have a suffix add -RAW as the suffix
 If DDMMYY is in file name try to replace with date in zip file name
 If file name matches most of the name > clean up file name
+
+If there are more mp4 files in the folder that dont match the original zip
+file name disregard
+
+When 'Saleet' or "Reem' is detected make file name add this to SH like
+followed:
+
+AR-SH-SA_ or AR_SH-RM_ and then whatever is extracted from original name
+and date
