@@ -1,0 +1,142 @@
+in the renaming. i'm seeing still more than 4 times the '-'. We can have 4 max : A-B-C-D
+These are invalid
+
+[OK]
+I've explained we only can have 4 '-' A-B-C-D but i noticed today a lot of
+EN-CT-COMEDY_STUDIO-MEDIAMELTDOWN-210316
+EN-CT-COMEDY_STUDIO-FILIBUSTER-200616
+EN-CT-EXPLAINER_STUDIO-WEDDINGS-080515
+EN-NG-US_BURRITOSFORHOMELESS-020816
+EN-CT-COMEDY_FIELD-SOMETHINGNICE-190716
+EN-RT-FALLUJAH-ESCAPEDISIS-180716
+ES-RT-WITNESS-SALERO-030517
+ES-RT-60-SANFRANCISCO-NIETOPARENTS-060416 you neglected 60 earlier!
+
+the only way that is fine would be
+EN-CT-COMEDY_STUDIOMEDIAMELTDOWN-210316
+EN-CT-COMEDY_STUDIOFILIBUSTER-200616
+EN-CT-EXPLAINER_STUDIOWEDDINGS-080515
+EN-CT-COMEDY_FIELDSOMETHINGNICE-190716
+EN-RT-FALLUJAHESCAPEDISIS-180716
+ES-RT-WITNESSSALERO-030517
+ES-RT-SANFRANCISCONIETOPARENTS-060416
+
+I also saw a few of these
+RT-60-US-DEAFDOG-080716 -> EN-RT-US-RT-DEAFDOG-080716
+-> EN-RT-US_DEAFDOG-080716
+
+RT-60-US-HOLOLENSMED-070516 -> EN-RT-US-RT-HOLOLENSMED-070516
+-> EN-RT-US_HOLOLENSMED-070516
+
+[???]
+instead of LANG_UNDER_DIR="folder-everything-under-50gb" I need 3 seperate ones for every language Abbriviation:
+
+EN -> EN_UNDER_DIR
+ES -> ES_UNDER_DIR
+AR -> AR_UNDER_DIR
+
+FR_OVER_DIR="/mnt/restore/S3UPLOAD/AR_Prod_LTO/"
+ES_OVER_DIR="/mnt/restore/S3UPLOAD/AR_Prod_LTO"
+
+OTHER_DIR="could-not-match"
+
+then i need 3 additional folders
+
+EN -> EN_HOLD
+ES -> ES_HOLD
+AR -> AR_HOLD
+
+use case for this folder is before you start with the renaming please check all files first. it could be i've set -l to AR while there are still EN or ES/SPA files.
+I need to check for other language, move first, then start the renaming.
+
+-l AR : if EN files are in folder move to EN_HOLD, if ES/SPA files are in folder move them to AR_HOLD
+-l ES : if EN files are in folder move to EN_HOLD, if AR/ARA files are in folder move them to AR_HOLD
+-l EN : if ES/SPA files are in folder move to EN_HOLD, if AR/ARA files are in folder move them to AR_HOLD
+
+[OK]
+We also need to move the renamed videos to the LANGUAGE_UNDER_DIR and i would like to see that in the csv as well
+
+[OK]
+Sometimes a folder that has cuts in it with a lot of files is scanned like 'budgetcuts'. If you scan 30 files and there is no match you can skip to the next file.
+After 25 files you have a match the counter starts again. if no video matches after 30 files skip to next file
+
+[OK]
+I also noticed you show the file sizes. Can you add one more feature : after checking for video in a zip and the zip is under 50 mb, just delete the zip and show in the csv
+'under 50mb, deleted'
+
+-----
+RC1 error zip case:
+AR-SH-ART_01x17_INFINITY-270117_
+ARA-080216-RT-MOROCCO-DOG_
+ARA-310116-RT-PARIS-EMERGENCY LAW_
+ARA-050416-RT-QATAR-BEACHVOLLYEBALL_
+ARA-020216-RT-TURKEY-MOREREFUGEES_ 2
+AR-SH-COOKINGSHOW__Jallab
+AR-SH-COOKINGSHOW__Khoshaf
+AR-SH-COOKINGSHOW__Fatet Humos
+AR-SH-COOKINGSHOW__Rice
+AR-SH-COOKINGSHOW__PASTA
+AR-SH-COOKINGSHOW__Onion Soup
+ARA-040216-RT-CANADA-REFUGEES-VJ_
+AR-SH-COOKINGSHOW__AR-SH-COOKINGSHOW_CHEESECAKE
+AR-SH-COOKINGSHOW__AR-SH-COOKINGSHOW_bo5ririce
+
+ARA-270815-MM-1x7-MATICHA
+ARA-250916-MM-s2x08-ABUALHOUL
+Copied_AR-SH-ART_01x10_SABRA&CHATILA-251116
+AR-SH_SALEET 19 SEP 2017
+AR-SH_SALEET 17 OCT 2017
+AR-SH-SALEET-010817
+AR-SH-SALEET 220817
+
+ES_RT-VERIFICADO2018 PROMO-190518
+SPA-RT-60-SALVADOR-ZIKAFISH-030216
+_RT-SHORT-JAPAN-RAINRAIN-200616
+_RT-60-CHINA-PIGS-080716
+_RT-60-MONGOLIA-CONTORTION-070716
+
+
+----
+Error Movie
+(1) 	: ARA-290915-YT-MM-1x09-KABAT.mov.mov                -> Unsupport media type. Ignored!
+(2) 	: ARA-290915-TW-MM-1x09-KABAT.mov.mov                -> Unsupport media type. Ignored!
+(3) 	: ARA-290915-MM-1x09-KABAT-THUMBNAIL                 -> Invalid suffix. Ignored!
+(4) 	: ARA-290915-FB-MM-1x09-KABAT.mov.mov                -> Unsupport media type. Ignored!
+(5) 	: ARA-290915-BC-MM-1x09-KABAT.mov                    -> Invalid suffix. Ignored!
+
+
+----------
+(92)Zip	: ARA-290216-MM-1x15-MATROOS                         -> AR-SH-MM-S1X15-MATROOS-290216                     
+Size	:  8.9Gi  - Moving to : folder-everything-under-50gb
+
+Folder	: [ Exports ]
+(1) 	: ARA-290216-MM-YT-1x15-MATROOS.mov                  -> AR-SH-MM-S1X15-MATROOS-290216-YT.mov
+(2) 	: ARA-290216-MM-TW-1x15-MATROOS.mov                  -> ES-RT-KANGAROODAD-130618-TW.mov (!!!)
+(3) 	: ARA-290216-MM-FB-1x15-MATROOS.mov                  -> ES-RT-KANGAROODAD-130618-FB.mov (!!!)
+(4) 	: ARA-290216-MM-BC-1x15-MATROOS.mov                  -> Invalid suffix. Ignored!
+(5) 	: ARA-290216-MM-1x15-MATROOS-THUMBNAIL.jpg           -> Invalid suffix. Ignored!
+
+
+(116)Zip	: ARA-171215-RT-60-CANADAN-VJ2_                      -> AR-RT-CANADAN-VJ2--121715                         
+Size	:  7.8Gi  - Moving to : folder-everything-under-50gb
+
+Folder	: [ Exports ]
+(1) 	: ARA-171215-YT-RT-60-CANADAN-VJ.mov                 -> AR-NG-CANADAN-121715-YT.mov
+(2) 	: ARA-171215-YT-RT-60-CANADAN-VJ.mov                 -> ES-RT-SYRIA_WHITEHELMETS-090316-YT.mov
+(3) 	: ARA-171215-YT-RT-60-CANADAN-VJ2.mov                -> ES-RT-SYRIA_WHITEHELMETS-090316-YT.mov (*Deleted* - Size : 220Mi )
+(4) 	: ARA-171215-TW-RT-60-CANADAN-VJ.mov                 -> AR-NG-CANADAN-090316-TW.mov
+(5) 	: ARA-171215-TW-RT-60-CANADAN-VJ.mov                 -> ES-RT-WONDERWOMANBAN-020617-TW.mov
+(6) 	: ARA-171215-TW-RT-60-CANADAN-VJ2.mov                -> ES-RT-WONDERWOMANBAN-020617-TW.mov (*Deleted* - Size : 220Mi )
+(7) 	: ARA-171215-RT-60-CANADAN-VJ-v2.jpg                 -> Invalid suffix. Ignored!
+(8) 	: ARA-171215-RT-60-CANADAN-VJ2.jpg                   -> Invalid suffix. Ignored!
+(9) 	: ARA-171215-RT-60-CANADAN-VJ                        -> Invalid suffix. Ignored!
+(10) 	: ARA-171215-RT-60-CANADAN-VJ                        -> Invalid suffix. Ignored!
+(11) 	: ARA-171215-FB-RT-60-CANADAN-VJ.mov                 -> AR-NG-CANADAN-121715-FB.mov
+(12) 	: ARA-171215-FB-RT-60-CANADAN-VJ.mov                 -> ES-RT-WEIRDPRODUCE-280417-FB.mov
+(13) 	: ARA-171215-FB-RT-60-CANADAN-VJ2.mov                -> ES-RT-WEIRDPRODUCE-280417-FB.mov (*Deleted* - Size : 185Mi )
+(14) 	: ARA-171215-CL-RT-60-CANADAN-VJ.mov                 -> Invalid suffix. Ignored!
+(15) 	: ARA-171215-CL-RT-60-CANADAN-VJ2.mov                -> Invalid suffix. Ignored!
+(16) 	: ARA-171215-BC-RT-60-CANADAN-VJ.mov                 -> ES-RT-WORLDCLEANUP-230518-RAW.mov
+(17) 	: ARA-171215-BC-RT-60-CANADAN-VJ2.mov                -> Invalid suffix. Ignored!
+Folder	: [ EXPORTS ]
+

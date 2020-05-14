@@ -1,0 +1,88 @@
+i noticed this one
+AR-SH-SA_03X24-130717	AR-SH-S03X24-130717
+AR-SH-MZ_01X04-070717	AR-SH-S01X04-070717
+
+the original is fine. it should stay AR-SH-SA_03X24-130717 or AR-SH-MZ_01X04-070717
+
+while you ignore a lot of 2 character abbriviation SA is a real name in combination with SH : SH-SA_
+possible combinations:
+AR-SH-TM_
+AR-SH-ZA_
+AR-SH-SA_
+AR-SH-DH_
+AR-SH-ESP_
+AR-SH-ZA
+AR-SH-TAKOL
+AR-SH-ART_
+AR-SH-ARTPLUS_
+AR-SH-ARTPLUSDOHA_
+AR-SH-MZ_
+AR-SH-ST_
+AR-SH-RM_
+AR-SH-SA_
+AR-SH-DH_
+
+sorry i missed that earlier
+
+if i run -c on folder could you show when files are deleted because they are smaller?
+
+ARA-0812150-RT-60-USA-TRUMPBANMUSLIMS_ -> AR-RT-USA_0812150TRUMPBANMUSLIMS-300320	
+Exports/AR-RT-USA_0812150TRUMPBANMUSLIMS-300320-FB.mov (deleted)
+Exports/AR-RT-USA_0812150TRUMPBANMUSLIMS-300320-YT.jpg
+Exports/AR-RT-USA_0812150TRUMPBANMUSLIMS-300320-TW.mov
+Exports/AR-RT-USA_0812150TRUMPBANMUSLIMS-300320-YT.mov (deleted)
+Exports/AR-RT-USA_0812150TRUMPBANMUSLIMS-300320-FB.mov
+Exports/AR-RT-USA_0812150TRUMPBANMUSLIMS-300320-TW.mov (deleted)
+Exports/AR-RT-USA_0812150TRUMPBANMUSLIMS-300320-YT.mov
+
+i noticed we're not neglecting everything but mov mxf and mp4
+Exports/AR-RT-MATCHTHUMBNAIL-200117-CLEAN.png
+Exports/AR-RT-MATCHTHUMBNAIL-200117-CLEAN.psd
+Exports/AR-RT-EGYPT_ALFESEIKHTHUMBNAIL-030516-FB.jpg
+
+we only have to grab .mov .mp4 and .mxf from cuts, cut, exports, _exports or any other folder that has 'cut' and 'exports'
+please make sure to check for part of word in folder name
+
+not sure what's going on here
+AR-RT-FIFAAWARDS-090117	AR-RT-FIFAAWARDS-090117	
+Exports/AR-RT-FIFAAWARDS-090117-SUB.mp4.00
+Exports/AR-RT-EXOSKELETON317-090420-FINAL.mp4.01
+
+but extension should only be as mentioned above
+
+this one is also weird:
+AR-RT-YOUTUBE-120717	AR-RT--120717
+AR-RT-FACEBOOK-040517	AR-RT--040517
+AR-RT-F8-190417	AR-RT--190417 <- please allow F8
+
+Can you make sure if there's no date to grab last access date from the main folder name
+
+Since we're close with the renaming and video extraction I want to add one more step. Moving the files based on size and first 2 characters.
+Movement into folders stored in the script with path
+
+path 'ES-folder-over-50gb'
+path 'AR-folder-over-50gb'
+path 'FR-folder-over-50gb'
+path 'folder-everything-under-50gb'
+folder 'could-not-match'
+
+path 'ES-folder-over-50gb'
+ES zip files over 50 gb need to be moved here after renaming and extraxtion
+
+path 'AR-folder-over-50gb'
+AR zip files over 50 gb need to be moved here after renaming and extraxtion
+
+path 'EN-folder-over-50gb'
+EN zip files over 50 gb need to be moved here after renaming and extraxtion
+
+path 'folder-everything-under-50gb'
+EN, AR, ES zip files under 50gb and video files need to be moved in here
+
+folder 'could-not-match'
+if an original zip file doesnt not match any of the rules move it here
+
+in csv file i would like additional column
+
+OLD NAME NEW NAME NEW VIDEO NAME MOVED TO
+
+MOVED TO shows folder path name from script
