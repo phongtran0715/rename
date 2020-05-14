@@ -88,6 +88,7 @@ file name disregard
 When 'Saleet' or "Reem' is detected make file name add this to SH like
 followed:
 
+<<<<<<< HEAD:readme/rename_rule.txt
 AR-SH-SA_ or AR_SH-RM_ and then whatever is extracted from original name and date
 
 ---- ZipSunRC changes:
@@ -121,3 +122,7 @@ after checking for video in a zip and the zip is under 50 mb, just delete the zi
 
 Update CSV output file:
 OLD NAME, NEW NAME, NEW VIDEO NAME, MOVED TO
+=======
+AR-SH-SA_ or AR_SH-RM_ and then whatever is extracted from original name
+and date
+>>>>>>> 3240a1d32a94f708332907e0ed1b9b3fcef4bb8e:rename_rule.txt
