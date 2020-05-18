@@ -18,7 +18,7 @@ if not os.path.exists(directory):
 count = 0
 with open(filepath) as fp:
   for file_name in fp:
-    file_name = directory + "/" +file_name.rstrip() + ".zip"
+    file_name = directory + "/" +file_name.rstrip() + ""
     zf = zipfile.ZipFile(file_name, mode='w')
     zf.close()
     count+=1

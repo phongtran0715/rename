@@ -32,6 +32,7 @@ OTHER_DIR="/mnt/restore/__CHECK/"
 DELETED_DIR="/mnt/restore/__DELETED/"
 
 LOG_DIR="/mnt/restore/log/"
+TMP_DIR="/mnt/restore/tmp/"
 DATABASE_FILE="/mnt/restore/zipdata_db.csv"
 
 #Zip file size threshold
@@ -120,9 +121,11 @@ is_suffix(){
 }
 
 is_subdir(){
- local data="$1"
+  local dir="$1"
+  base_dir=$(echo $(basename "$dir"))
+  base_dir=$(echo ${base_dir^^})
   for i in "${!SUB_DIR_LISTS[@]}";do
-    if [[ "$data" == *"${SUB_DIR_LISTS[$i]}"* ]];then
+    if [[ "$base_dir" == *"${SUB_DIR_LISTS[$i]}"* ]];then
       return 0 #true
     fi
   done
@@ -223,7 +226,7 @@ order_zip_element(){
   if [ -z "$match" ];then
     match=$(echo $name | grep -oE '[0-9]{2}[0-9]{2}[0-9]{2}')
     if [ ! -z "$match" ] && [ ${#match} -eq 6 ];then
-      date=$(echo $match | sed 's/[^0-9]1g')
+      date=$(echo $match | sed 's/[^0-9]//g')
       name=${name/"$match"/""}
     fi
   else
@@ -527,7 +530,7 @@ standardized_name(){
   name=$(process_episode "$name")
   DEBUG echo "005 : $name"
 
-  #reorder element
+  # reorder element
   if [[ $type == "MOVIE" ]];then
     name=$(order_movie_element "$old_name" "$name" "$path")
   else
@@ -600,11 +603,10 @@ correct_zip_datetime(){
   tmpDirs=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
   IFS=$'\n' read -rd '' -a dirs <<<"$tmpDirs"
   for d in "${dirs[@]}";do
-    folder=$(echo $(basename "$d"))
-    up_folder=$(echo ${folder^^})
-    if is_subdir $up_folder;then
+    if is_subdir "$d";then
       # List all file in sub folder
-      tmpFiles=$(unzip -Zl "$file_path" "*/$folder/*" | rev| cut -d '/' -f 1 | rev | sort -nr)
+      base_dir=$(echo $(basename "$d"))
+      tmpFiles=$(unzip -Zl "$file_path" "*/$base_dir/*" | rev| cut -d '/' -f 1 | rev | sort -nr)
       IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
       for i in "${!arrFiles[@]}";do
         name=${arrFiles[$i]}
@@ -672,7 +674,7 @@ check_zip_file(){
   
   # validate zip size
   if [ $zipSize -lt $DELETE_THRESHOLD ]; then
-    printf "${RED}($index)Zip\t: %-50s - Size : %s - IFize size invalid - Moved to : $DELETED_DIR${NC}\n" \
+    printf "${RED}($index)Zip\t: %-50s - Size : %s - Fize size invalid - Moved to : $DELETED_DIR${NC}\n" \
       "$old_zip_name" "$(convert_size $zipSize)"
     echo "$old_no_ext,under 50MB,$(convert_size $zipSize),,$DELETED_DIR"  >> $log_path
     TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE + 1))
@@ -683,8 +685,8 @@ check_zip_file(){
   # check new zip file existed or not
   if list_contain "$new_no_ext" "${!ARR_ZIPS[@]}";then
     #found
-    printf "${RED}($index)Zip\t: %-50s -> %s - File existed (*Deleted* - Size : %s )${NC}\n" \
-            "$old_zip_name" "$new_no_ext" "$(convert_size $zipSize)"
+    printf "${RED}($index)Zip\t: %-50s -> %s ${NC}\n" "$old_zip_name" "$new_no_ext"
+    printf "${RED}Size : $(convert_size $zipSize) - Duplicated - Move to $DELETED_DIR)${NC}\n"
     TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE + 1))
     TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
     return
@@ -707,14 +709,13 @@ check_zip_file(){
   tmpDirs=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
   IFS=$'\n' read -rd '' -a dirs <<<"$tmpDirs"
   for d in "${dirs[@]}";do
-    folder=$(echo $(basename "$d"))
-    up_folder=$(echo ${folder^^})
-    if is_subdir $up_folder;then
+    if is_subdir "$d";then
       echo
-      echo -e "Folder\t: [" $folder "]"
+      d=$(basename "$d")
+      echo -e "Folder\t: [" $d "]"
       # List all file in sub folder
-      tmpFiles=$(unzip -Zl "$file_path" "*/$folder/*" | rev| cut -d '/' -f 1 | rev | sort -nr)
-      tmpSizes=$(unzip -Zl "$file_path" "*/$folder/*" | awk '{print $4}' | sort -nr)
+      tmpFiles=$(unzip -Zl "$file_path" "*/$d/*" | rev| cut -d '/' -f 1 | rev | sort -nr)
+      tmpSizes=$(unzip -Zl "$file_path" "*/$d/*" | awk '{print $4}' | sort -nr)
       IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
       IFS=$'\n' read -rd '' -a arrSizes <<<"$tmpSizes"
 
@@ -729,8 +730,8 @@ check_zip_file(){
         #check movie name have suffix or not
         read gsuffix < "$gsuffix_path"
         if [ -z "$gsuffix" ];then
-          # printf "${GRAY}($count) \t: %-50s -> Invalid suffix. Ignored!${NC}\n" "$old_video_name"
-          # count=$(($count +1))
+          printf "${GRAY}($count) \t: %-50s -> Invalid suffix. Ignored!${NC}\n" "$old_video_name"
+          count=$(($count +1))
           continue;
         fi
         ext="${arrFiles[$i]#*.}"
@@ -739,8 +740,8 @@ check_zip_file(){
           #check new video name existed or not
           if list_contain "$new_video_name" "${!ARR_MOVIES[@]}";then
             #found
-            printf "${RED}($count) \t: %-50s -> $new_video_name (*Deleted* - Size : %s )${NC}\n" \
-            "$old_video_name" "$(convert_size ${arrSizes[$i]})"
+            printf "${RED}($count)\t: %-50s -> %s ${NC}\n" "$old_video_name" "$new_video_name"
+            printf "${RED}Size : $(convert_size ${arrSizes[$i]}) - Duplicated - Move to $DELETED_DIR)${NC}\n"
             count=$(($count +1))
             TOTAL_DEL_MEDIA_FILE=$(($TOTAL_DEL_MEDIA_FILE + 1))
             TOTAL_DEL_MEDIA_SIZE=$(($TOTAL_DEL_MEDIA_SIZE + ${arrSizes[$i]}))
@@ -753,8 +754,6 @@ check_zip_file(){
             echo -e "Size\t:" "$(convert_size ${arrSizes[$i]})" " - Moved to : $target_folder"
           fi
           echo ",,,$folder/$new_video_name,$target_folder" >> $log_path
-        # else
-        #   printf "${YELLOW}($count) \t: %-50s -> Unsupport media type. Ignored!${NC}\n" "$old_video_name"
         fi
         count=$(($count +1))
       done
@@ -765,7 +764,7 @@ check_zip_file(){
 process_zip_file(){
   local file_path="$1"
   local index=$2
-  count=1
+  count=0
   echo "----------"
   # check rename zip file
   old_zip_name=$(basename "$file_path")
@@ -793,23 +792,20 @@ process_zip_file(){
   fi
 
   # validate zip size
-  if [ $zipSize -lt $DELETE_THRESHOLD ]; then
-    printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
-      "$old_zip_name" "$(convert_size $zipSize)"
-    mv -f "$file_path" "$DELETED_DIR";
-    TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE + 1))
-    TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
-    return;
-  fi
+  # if [ $zipSize -lt $DELETE_THRESHOLD ]; then
+  #   printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
+  #     "$old_zip_name" "$(convert_size $zipSize)"
+  #   mv -f "$file_path" "$DELETED_DIR";
+  #   TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE)
+  #   TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
+  #   return;
+  # fi
 
   # check new zip file existed or not
   if list_contain "$new_no_ext" "${!ARR_ZIPS[@]}";then
     #found
-    # printf "${RED}($index)Zip\t: %-50s -> %s (*Deleted* - Size : %s )${NC}\n" \
-    #         "$old_zip_name" "$new_no_ext" "$(convert_size $zipSize)"
-    # rm -f $"file_path"
-    printf "${RED}($index)Zip\t: %-50s -> %s - Size : %s - Duplicated - Move to $DELETED_DIR)${NC}\n" \
-            "$old_zip_name" "$new_no_ext" "$(convert_size $zipSize)"
+    printf "${RED}($index)Zip\t: %-50s -> %s ${NC}\n" "$old_zip_name" "$new_no_ext"
+    printf "${RED}Size : $(convert_size $zipSize) - Duplicated - Move to $DELETED_DIR)${NC}\n"
     mv -f "$file_path" "$DELETED_DIR"
     TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE + 1))
     TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
@@ -817,7 +813,6 @@ process_zip_file(){
   else
     #not found
     printf "($index)Zip\t: %-50s  -> %-50s\n" "$old_no_ext" "$new_no_ext"
-    # Rename zip file
     if [[ "$old_zip_name" != "$new_zip_name" ]];then
       mv -f "$zip_dir_name/$old_zip_name" "$zip_dir_name/$new_zip_name"
     fi
@@ -829,98 +824,80 @@ process_zip_file(){
   echo -e "Size\t: " "$(convert_size $zipSize)" " - Moved to : $target_folder"
   #TODO : check duplicate file, file size 
   mv -f "$zip_dir_name/$new_zip_name" "$target_folder"
-  # count=$(($count +1))
   file_path="$target_folder/$new_zip_name"
   zip_dir_name=$(dirname "$file_path")
   insert_db "$old_zip_name" "$new_zip_name" "$zipSize" "$zip_dir_name"
   echo
 
   # Read zip content file
-  tmpDirs=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
+  tmpDirs=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }') > /dev/null 2>&1
   IFS=$'\n' read -rd '' -a dirs <<<"$tmpDirs"
 
   unset sub_folder;
   for d in "${dirs[@]}";do
-    folder=$(echo $(basename "$d"))
-    up_folder=$(echo ${folder^^})
-    if is_subdir $up_folder;then
-      sub_folder+=("$folder")
+    if is_subdir "$d";then
+      sub_folder+=("$d")
     fi
   done
 
+  # Loop all sub dir, unzip video  
   if [ ${#sub_folder[@]} -gt 0 ];then
     # unzip
-    rm -rf "/mnt/restore/tmp/"
-    mkdir -p "/mnt/restore/tmp/"
-    echo -e "Unziping ... "
-    unzip -o "$file_path" -d "/mnt/restore/tmp/" > "/mnt/restore/tmp/log"
-    if [ $? -ne 0 ]; then
-      printf "${RED}Unzip file [$file_path] false!${NC}\n"
-      echo ""
-      return
-    fi
-
-    unzip_dir=$(cat "/mnt/restore/tmp/log" | grep -m1 "creating:" | cut -d ' ' -f5-)
+    rm -rf "$TMP_DIR"
+    mkdir -p "$TMP_DIR"
     for i in "${sub_folder[@]}";do
       echo
-      echo -e "Folder\t: [ $i ]"
-      # List all file in sub folder
-      tmpFiles=$(ls -AS1 "$unzip_dir$i/")
-      IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
-      for k in "${arrFiles[@]}";do
-        f="$unzip_dir$i/$k"
-        if [ -f "$f" ]; then
-          old_video_name=$(basename "$f")
-          new_video_name=$(standardized_name "$f" "MOVIE")
-          if [[ $new_video_name == "NOT-MATCH"* ]]; then
-            # printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
-            # count=$(($count +1))
-            continue
-          fi
-          #check movie name have suffix or not
-          read gsuffix < "$gsuffix_path"
-          if [ -z "$gsuffix" ];then
-            # printf "${GRAY}($count) \t: %-50s -> Invalid suffix. Ignored!${NC}\n" "$old_video_name"
-            # count=$(($count +1))
-            continue;
-          fi
-          ext="${f#*.}"
-          if [[ $ext == "mp4" ]] || [[ $ext == "mxf" ]] || [[ $ext == "mov" ]];then
-            TOTAL_MEDIA_FILE=$(($TOTAL_MEDIA_FILE + 1))
-            #check new video name existed or not
-            if [[ -f "$f" ]]; then size=$(stat -c%s "$f");fi
-            if list_contain "$new_video_name" "${!ARR_MOVIES[@]}";then
-              #found
-              # printf "${RED}($count) \t: %-50s -> $new_video_name (*Deleted* - Size : %s )${NC}\n" \
-              # "$old_video_name" "$(convert_size $size)"
-              # rm -f "$f"
-              printf "${RED}($count)Zip\t: %-50s -> %s - Size : %s - Duplicated - Move to $DELETED_DIR)${NC}\n" \
-              "$old_video_name" "$new_video_name" "$(convert_size $size)"
-              mv -f "$f" "$DELETED_DIR"
-              count=$(($count +1))
-              TOTAL_DEL_MEDIA_FILE=$(($TOTAL_DEL_MEDIA_FILE + 1))
-              TOTAL_DEL_MEDIA_SIZE=$(($TOTAL_DEL_MEDIA_SIZE + $size))
-              continue
-            else
-              #not found
-              printf "($count) \t: %-50s -> %s\n" "$old_video_name" "$new_video_name"
-              if [[ "$old_video_name" != "$new_video_name" ]];then
-                mv -f "$f" "$unzip_dir$i/$new_video_name"
-              fi
-              target_folder=$(get_target_folder ${new_video_name:0:2} $size)
-              echo -e "Size\t:" "$(convert_size $size)" " - Moved to : $target_folder"
-              mv -f "$unzip_dir$i/$new_video_name" "$target_folder"
-              ARR_MOVIES+=(["$new_video_name"]=$size)
-            fi
-          # else
-          #   printf "${YELLOW}($count) \t: %-50s -> Unsupport media type. Ignored!${NC}\n" "$old_video_name"
-          fi
-          count=$(($count +1))
+      echo -e "Unziping " $(basename $i) "... "
+      unzip -jo -qq  "$file_path" "$i*.mp4" -d "$TMP_DIR" > /dev/null 2>&1
+      unzip -jo -qq  "$file_path" "$i*.MP4" -d "$TMP_DIR" > /dev/null 2>&1
+      unzip -jo -qq "$file_path" "$i*.mov" -d "$TMP_DIR" > /dev/null 2>&1
+      unzip -jo -qq "$file_path" "$i*.MOV" -d "$TMP_DIR" > /dev/null 2>&1
+      unzip -jo -qq "$file_path" "$i*.mxf" -d "$TMP_DIR" > /dev/null 2>&1
+      unzip -jo -qq "$file_path" "$i*.MXF" -d "$TMP_DIR" > /dev/null 2>&1
+      files=$(ls -S "$TMP_DIR")
+      while read file; do
+        count=$(($count +1))
+        file="$TMP_DIR/$file"
+        old_video_name=$(basename "$file")
+        new_video_name=$(standardized_name "$file" "MOVIE")
+        if [[ $new_video_name == "NOT-MATCH"* ]]; then
+          # check matching video name
+          printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
+          continue
         fi
-      done
+
+        #check movie name have suffix or not
+        read gsuffix < "$gsuffix_path"
+        if [ -z "$gsuffix" ];then
+          printf "${GRAY}($count) \t: %-50s -> Invalid suffix. Ignored!${NC}\n" "$old_video_name"
+          continue;
+        fi
+        TOTAL_MEDIA_FILE=$(($TOTAL_MEDIA_FILE + 1))
+        #check new video name existed or not
+        if [[ -f "$file" ]]; then size=$(stat -c%s "$file");fi
+        if list_contain "$new_video_name" "${!ARR_MOVIES[@]}";then
+          #found
+          printf "${RED}($count)\t: %-50s -> %s${NC}\n" "$old_video_name" "$new_video_name"
+          printf "${RED}Size : $(convert_size $size) - Duplicated - Move to $DELETED_DIR)${NC}\n"
+          mv -f "$file" "$DELETED_DIR"
+          TOTAL_DEL_MEDIA_FILE=$(($TOTAL_DEL_MEDIA_FILE + 1))
+          TOTAL_DEL_MEDIA_SIZE=$(($TOTAL_DEL_MEDIA_SIZE + $size))
+          continue
+        else
+          #not found
+          printf "($count) \t: %-50s -> %s\n" "$old_video_name" "$new_video_name"
+          if [[ "$old_video_name" != "$new_video_name" ]];then
+            mv -f "$file" "$TMP_DIR/$new_video_name" #rename video
+          fi
+          target_folder=$(get_target_folder ${new_video_name:0:2} $size)
+          echo -e "Size\t:" "$(convert_size $size)" " - Moved to : $target_folder"
+          mv -f "$TMP_DIR/$new_video_name" "$target_folder"
+          ARR_MOVIES+=(["$new_video_name"]=$size)
+        fi
+      done <<< "$files"
     done
   fi
-  rm -rf "/mnt/restore/tmp/"
+  rm -rf "$TMP_DIR/"
 }
 
 main(){
