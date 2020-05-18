@@ -100,7 +100,7 @@ insert_db(){
   local size="$3"
   local path="$4"
   new_record="$1","$2","$3","$4"
-  compare_str="$1","$2","$3"
+  compare_str="$2","$3"
   match=$(cat $DATABASE_FILE | grep "$compare_str")
   if [ ! -z "$match" ];then
     return # found
@@ -792,14 +792,14 @@ process_zip_file(){
   fi
 
   # validate zip size
-  # if [ $zipSize -lt $DELETE_THRESHOLD ]; then
-  #   printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
-  #     "$old_zip_name" "$(convert_size $zipSize)"
-  #   mv -f "$file_path" "$DELETED_DIR";
-  #   TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE)
-  #   TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
-  #   return;
-  # fi
+  if [ $zipSize -lt $DELETE_THRESHOLD ]; then
+    printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
+      "$old_zip_name" "$(convert_size $zipSize)"
+    mv -f "$file_path" "$DELETED_DIR";
+    TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE)
+    TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
+    return;
+  fi
 
   # check new zip file existed or not
   if list_contain "$new_no_ext" "${!ARR_ZIPS[@]}";then
@@ -937,9 +937,9 @@ main(){
   
   if [[ -d "$INPUT" ]]; then
     # directory
-    log_path="$LOG_DIR/"$(echo $(basename "$INPUT")).csv
-    zip_log_path="$LOG_DIR/"$(echo $(basename "$INPUT"))_new_zip_name.txt
-    invalid_log_path="$LOG_DIR/"$(echo $(basename "$INPUT"))_invalid_zip_name.csv
+    log_path="$LOG_DIR"$(echo $(basename "$INPUT")).csv
+    zip_log_path="$LOG_DIR"$(echo $(basename "$INPUT"))_new_zip_name.txt
+    invalid_log_path="$LOG_DIR"$(echo $(basename "$INPUT"))_invalid_zip_name.csv
     if [[ $mode == "TEST" ]] ;then 
       echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME,MOVED TO" > $log_path;
       printf "" > $zip_log_path;
@@ -960,9 +960,9 @@ main(){
   elif [[ -f "$INPUT" ]]; then
     # file
     file_name=$(echo $(basename "$INPUT"))
-    log_path="$LOG_DIR/"$(echo $file_name | cut -f 1 -d '.')".csv"
-    zip_log_path="$LOG_DIR/"$(echo $file_name | cut -f 1 -d '.')"_new_zip_name.txt"
-    invalid_log_path="$LOG_DIR/"$(echo $file_name | cut -f 1 -d '.')"_invalid_zip_name.csv"
+    log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')".csv"
+    zip_log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')"_new_zip_name.txt"
+    invalid_log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')"_invalid_zip_name.csv"
     if [[ $mode == "TEST" ]];then
       echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME" > $log_path
       printf "" > $zip_log_path;
@@ -987,13 +987,11 @@ main(){
     printf "%10s %-15s : $log_path \n" "-" "Full log"
     printf "%10s %-15s : $zip_log_path \n" "-" "New zip name "
     printf "%10s %-15s : $DATABASE_FILE \n" "-" "Database "
-    printf "%10s %-15s : $invalid_log_path \n" "-" "Invalid zip name "
     echo
   elif [[ $mode == "DUMMY" ]];then
     echo "Log file info:"
     printf "%10s %-15s : $log_path \n" "-" "Full log"
     printf "%10s %-15s : $zip_log_path \n" "-" "New zip name "
-    printf "%10s %-15s : $invalid_log_path \n" "-" "Invalid zip name "
   fi
   echo "Zip file info:"
   printf "%10s %-15s : $total \n" "-" "Total file"

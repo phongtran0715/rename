@@ -33,6 +33,7 @@ DELETE_THRESHOLD=$((100 * 1024 * 1024)) #50Mb
 
 declare -A ARR_VIDEOS
 
+gsuffix_path="/tmp/.gsuffix"
 gteam_path="/tmp/.gvideo_team"
 gvideo_name_path="/tmp/.gvideo_name"
 
@@ -95,7 +96,7 @@ is_suffix(){
   local data="$1"
   for i in "${!SUFFIX_LISTS[@]}";do
     if [[ "$data" == "${SUFFIX_LISTS[$i]}" ]];then
-      return 0 <div id="true">chec</div>
+      return 0
     fi
   done
   return 1 #false
@@ -306,6 +307,7 @@ order_movie_element(){
       if [ ! -z $value ];then desc+="$value-"; fi
     fi
   done
+  echo "$tmpSuffix" > "$gsuffix_path";
 
   if [ -z "$team" ];then team="RT-"; fi
   read gteam < "$gteam_path"
@@ -335,6 +337,7 @@ order_movie_element(){
 
 standardized_name(){
   local file_path="$1"
+  echo "" > "$gsuffix_path"
   echo "" > "$gteam_path"
 
   DEBUG echo "000 : $file_path"
@@ -435,21 +438,27 @@ check_video_file(){
   # check file name is matched with origin file name in DB or not
   read video_name < "$gvideo_name_path"
   if ! db_check "$video_name";then
-    printf "${YELLOW}($index)File\t: %-50s - %s - File not match DB - Moved to : $OTHER_DIR${NC}\n" \
-    "$old_name" "$new_name"
+    printf "${YELLOW}($index)File\t: %-50s - %s${NC}\n" "$old_name" "$new_name"
+    printf "${YELLOW}File not match DB - Moved to : $OTHER_DIR${NC}\n"
     return
   fi
 
   # check new zip file existed or not
   if list_contain "$new_no_ext" "${!ARR_VIDEOS[@]}";then
     #found
-    printf "${RED}($index)File\t: %-50s - %s - File existed (*Deleted* - Size : %s )${NC}\n" \
-            "$old_name" "$new_no_ext" "$(convert_size $fileSize)"
+    printf "${RED}($index)File\t: %-50s - %s${NC}\n" "$old_name" "$new_no_ext"
+    printf "${RED}File existed (*Deleted* - Size : %s )${NC}\n" "$(convert_size $fileSize)"
     TOTAL_DEL_FILE=$(($TOTAL_DEL_FILE + 1))
     TOTAL_DEL_SIZE=$(($TOTAL_DEL_SIZE + $fileSize))
     return
   fi
-
+  # Check suffix
+  read gsuffix < "$gsuffix_path"
+  if [ -z "$gsuffix" ];then
+    printf "${GRAY}($count) \t: %-50s -> Invalid suffix. Ignored!${NC}\n" "$old_no_ext"
+    count=$(($count +1))
+    continue;
+  fi
   printf "($index)File\t: %-50s -> %-50s\n" "$old_no_ext" "$new_no_ext"
   ARR_VIDEOS+=(["$new_no_ext"]=fileSize)
   dir_name=$(dirname "$file_path")
@@ -476,8 +485,8 @@ process_video_file(){
   # check file name is matched with origin file name in DB or not
   read video_name < "$gvideo_name_path"
   if ! db_check "$video_name";then
-    printf "${YELLOW}($index)File\t: %-50s -> %s - File not match DB - Moved to : $OTHER_DIR${NC}\n" \
-    "$old_name" "$new_name"
+    printf "${YELLOW}($index)File\t: %-50s - %s${NC}\n" "$old_name" "$new_name"
+    printf "${YELLOW}File not match DB - Moved to : $OTHER_DIR${NC}\n"
     mv -f "$file_path" "$OTHER_DIR"
     return
   fi
@@ -485,8 +494,8 @@ process_video_file(){
   # check new file existed or not
   if list_contain "$new_no_ext" "${!ARR_VIDEOS[@]}";then
     #found
-    printf "${RED}($index)File\t: %-50s -> %s - Size : %s - File existed - Move to $DELETED_DIR)${NC}\n" \
-            "$old_name" "$new_no_ext" "$(convert_size $fileSize)"
+    printf "${RED}($index)File\t: %-50s - %s${NC}\n" "$old_name" "$new_no_ext"
+    printf "${RED}File existed (*Deleted* - Size : %s )${NC}\n" "$(convert_size $fileSize)"
     mv -f "$file_path" "$DELETED_DIR"
     TOTAL_DEL_FILE=$(($TOTAL_DEL_FILE + 1))
     TOTAL_DEL_SIZE=$(($TOTAL_DEL_SIZE + $fileSize))
