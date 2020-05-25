@@ -18,9 +18,9 @@ EN_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-EN/"
 ES_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-ES/"
 FR_OVER_DIR="FR-OVER"
 
-AR_UNDER_DIR="/mnt/restore/S3UPLOAD/AR_Prod_LTO/"
-EN_UNDER_DIR="/mnt/restore/S3UPLOAD/EN_Prod_LTO/"
-ES_UNDER_DIR="/mnt/restore/S3UPLOAD/ES_Prod_LTO/"
+AR_UNDER_DIR="/mnt/restore/S3UPLOAD/AR-UNDER/"
+EN_UNDER_DIR="/mnt/restore/S3UPLOAD/EN-UNDER/"
+ES_UNDER_DIR="/mnt/restore/S3UPLOAD/ES-UNDER/"
 FR_UNDER_DIR="FR-UNDER"
 
 AR_HOLD_DIR="/mnt/restore/R1084-AR/"
@@ -29,15 +29,18 @@ ES_HOLD_DIR="/mnt/restore/R1200-ES/"
 FR_HOLD_DIR="FR-HOLD"
 
 OTHER_DIR="/mnt/restore/__CHECK/"
-DELETED_DIR="/mnt/restore/__DELETED/"
+DELETED_DIR="/mnt/restore/__DEL/"
 
 LOG_DIR="/mnt/restore/log/"
 TMP_DIR="/mnt/restore/tmp/"
-DATABASE_FILE="/mnt/restore/zipdata_db.csv"
+DATABASE_FULL="/mnt/restore/full_db.csv"
+DATABASE_AR="/mnt/restore/ar_db.csv"
+DATABASE_EN="/mnt/restore/en_db.csv"
+DATABASE_ES="/mnt/restore/es_db.csv"
 
 #Zip file size threshold
-THRESHOLD=$((50 * 1024 * 1024 * 1024)) #50Gb
-DELETE_THRESHOLD=$((100 * 1024 * 1024)) #50Mb
+THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
+DELETE_THRESHOLD=$((25 * 1024 * 1024)) #25Mb
 
 declare -A ARR_ZIPS
 declare -A ARR_MOVIES
@@ -73,7 +76,7 @@ helpFunction()
   exit 1
 }
 
-while getopts "d:c:x:l:" opt
+while getopts "d:c:x:l:t:" opt
 do
    case "$opt" in
       d ) INPUT="$OPTARG"
@@ -83,6 +86,7 @@ do
       x ) INPUT="$OPTARG"
           mode="RUN";;
       l ) default_lang="$OPTARG";;
+      t ) timestamp="$OPTARG";;
       ? ) helpFunction ;;
    esac
 done
@@ -93,6 +97,20 @@ then
    echo "Some or all of the parameters are empty";
    helpFunction
 fi
+get_db_file(){
+  local name="$1"
+  lang=$(echo "$name" | cut -f1 -d"-")
+  if [[ $lang == "AR" ]];then
+    result="$DATABASE_AR"
+  elif [[ $lang == "EN" ]]; then
+    result="$DATABASE_EN"
+  elif [[ $lang == "ES" ]]; then
+    result="$DATABASE_ES"
+  else
+    result=""
+  fi
+  echo $result
+}
 
 insert_db(){
   local old_name="$1"
@@ -101,12 +119,20 @@ insert_db(){
   local path="$4"
   new_record="$1","$2","$3","$4"
   compare_str="$2","$3"
-  match=$(cat $DATABASE_FILE | grep "$compare_str")
-  if [ ! -z "$match" ];then
-    return # found
-  else
-    #not found , insert to db
-    echo "$new_record" >> "$DATABASE_FILE"
+  db_children_file=$(get_db_file "$new_name")
+  
+  #insert to children 
+  if [ ! -z "$db_children_file" ];then
+    match=$(cat $db_children_file | grep "$compare_str")
+    if [ -z "$match" ];then
+      echo "$new_record" >> "$db_children_file"
+    fi
+  fi
+  
+  # insert to db parent file
+  match=$(cat $DATABASE_FULL | grep "$compare_str")
+  if [ -z "$match" ];then
+    echo "$new_record" >> "$DATABASE_FULL"
   fi
 }
 
@@ -125,7 +151,7 @@ is_subdir(){
   base_dir=$(echo $(basename "$dir"))
   base_dir=$(echo ${base_dir^^})
   for i in "${!SUB_DIR_LISTS[@]}";do
-    if [[ "$base_dir" == *"${SUB_DIR_LISTS[$i]}"* ]];then
+    if [[ "$base_dir" == *"${SUB_DIR_LISTS[$i]}"* && "$base_dir" != *"PRV"* ]];then
       return 0 #true
     fi
   done
@@ -581,7 +607,6 @@ dummy_test(){
     if ! validate_zip_name $new_zip_name;then
       printf "${GRAY}($index)Zip\t: %-50s - %s - Invalid new zip name - Moved to : $OTHER_DIR${NC}\n" \
       "$old_zip_name" "$new_zip_name"
-      echo "$old_zip_name,$new_zip_name,$OTHER_DIR"  >> $invalid_log_path
       continue
     fi
     echo "$old_zip_name,$new_zip_name"  >> $log_path
@@ -644,8 +669,7 @@ check_zip_file(){
   local file_path="$1"
   local log_path="$2"
   local zip_log_path="$3"
-  local invalid_log_path="$4"
-  local index=$5
+  local index=$4
   count=1
   echo "----------"
   # check rename zip file
@@ -658,7 +682,7 @@ check_zip_file(){
   if [ ! -z $default_lang ];then
     hold_dir=$(get_hold_dir "$new_video_name")
     if [ ! -z "$hold_dir" ];then
-      printf "${GRAY}($index) File : %-50s -> - Language not match - Moved to : %s${NC}\n" "$old_zip_name" "$hold_dir/"
+      printf "${GRAY}($index) File : %-50s -> - Language not match - Moved to : %s${NC}\n" "$old_zip_name" "$hold_dir"
       echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$hold_dir"  >> $log_path
       TOTAL_NON_LANG_FILE=$(($TOTAL_NON_LANG_FILE + 1))
       return
@@ -668,7 +692,6 @@ check_zip_file(){
   if ! validate_zip_name $new_zip_name;then
     printf "${GRAY}($index)Zip\t: %-50s - %s - Invalid new zip name - Moved to : $OTHER_DIR${NC}\n" \
     "$old_zip_name" "$new_zip_name"
-    echo "$old_zip_name,$new_zip_name,$OTHER_DIR"  >> $invalid_log_path
     return
   fi
   
@@ -702,7 +725,7 @@ check_zip_file(){
   echo -e "Size\t:" "$(convert_size $zipSize)" " - Moved to : $target_folder"
   echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$target_folder"  >> $log_path
   echo "$new_no_ext"  >> $zip_log_path
-  insert_db "$old_zip_name" "$new_zip_name" "$zipSize" "$zip_dir_name"
+  # insert_db "$old_zip_name" "$new_zip_name" "$zipSize" "$zip_dir_name"
   echo
 
   # Read zip content file
@@ -723,8 +746,8 @@ check_zip_file(){
         old_video_name=${arrFiles[$i]}
         new_video_name=$(standardized_name "$zip_dir_name/$old_video_name" "MOVIE")
         if [[ $new_video_name == "NOT-MATCH"* ]]; then
-          printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
-          count=$(($count +1))
+          # printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
+          # count=$(($count +1))
           continue
         fi
         #check movie name have suffix or not
@@ -753,7 +776,7 @@ check_zip_file(){
             target_folder=$(get_target_folder ${new_video_name:0:2} ${arrSizes[$i]})
             echo -e "Size\t:" "$(convert_size ${arrSizes[$i]})" " - Moved to : $target_folder"
           fi
-          echo ",,,$folder/$new_video_name,$target_folder" >> $log_path
+          echo ",,,$d/$new_video_name,$target_folder" >> $log_path
         fi
         count=$(($count +1))
       done
@@ -763,7 +786,9 @@ check_zip_file(){
 
 process_zip_file(){
   local file_path="$1"
-  local index=$2
+  local log_path="$2"
+  local zip_log_path="$3"
+  local index=$4
   count=0
   echo "----------"
   # check rename zip file
@@ -778,6 +803,7 @@ process_zip_file(){
     hold_dir=$(get_hold_dir "$new_zip_name")
     if [ ! -z "$hold_dir" ];then
       printf "${YELLOW}($index) File : %-50s - Language invalid - Moved to : %s${NC}\n" "$old_zip_name" "$hold_dir"
+      echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$hold_dir"  >> $log_path
       mv -f "$zip_dir_name/$old_zip_name" "$hold_dir/"
       TOTAL_NON_LANG_FILE=$(($TOTAL_NON_LANG_FILE + 1))
       return
@@ -791,12 +817,13 @@ process_zip_file(){
     continue
   fi
 
-  # validate zip size
+  validate zip size
   if [ $zipSize -lt $DELETE_THRESHOLD ]; then
     printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
       "$old_zip_name" "$(convert_size $zipSize)"
+    echo "$old_no_ext,under 50MB,$(convert_size $zipSize),,$DELETED_DIR"  >> $log_path
     mv -f "$file_path" "$DELETED_DIR";
-    TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE)
+    TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE +1))
     TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
     return;
   fi
@@ -821,11 +848,12 @@ process_zip_file(){
 
   # move to target folder
   target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
-  echo -e "Size\t: " "$(convert_size $zipSize)" " - Moved to : $target_folder"
-  #TODO : check duplicate file, file size 
+  echo -e "Size\t: " "$(convert_size $zipSize)" " - Moved to : $target_folder" 
   mv -f "$zip_dir_name/$new_zip_name" "$target_folder"
   file_path="$target_folder/$new_zip_name"
   zip_dir_name=$(dirname "$file_path")
+  echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$target_folder"  >> $log_path
+  echo "$new_no_ext"  >> $zip_log_path
   insert_db "$old_zip_name" "$new_zip_name" "$zipSize" "$zip_dir_name"
   echo
 
@@ -862,7 +890,7 @@ process_zip_file(){
         new_video_name=$(standardized_name "$file" "MOVIE")
         if [[ $new_video_name == "NOT-MATCH"* ]]; then
           # check matching video name
-          printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
+          # printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
           continue
         fi
 
@@ -894,6 +922,7 @@ process_zip_file(){
           mv -f "$TMP_DIR/$new_video_name" "$target_folder"
           ARR_MOVIES+=(["$new_video_name"]=$size)
         fi
+        echo ",,,$new_video_name,$target_folder" >> $log_path
       done <<< "$files"
     done
   fi
@@ -901,6 +930,8 @@ process_zip_file(){
 }
 
 main(){
+  local log_path="$1"
+  local zip_log_path="$2"
   total=0
   if [ ! -f "$COUNTRY_FILE" ]; then
     echo "Not found country file : " $COUNTRY_FILE
@@ -910,10 +941,6 @@ main(){
   if [ ! -d "$LOG_DIR" ]; then
     echo "Not found log directory : " $LOG_DIR
     exit 1
-  fi
-
-  if [ ! -f "$DATABASE_FILE" ]; then
-    touch "$DATABASE_FILE"
   fi
 
   validate=0
@@ -937,44 +964,34 @@ main(){
   
   if [[ -d "$INPUT" ]]; then
     # directory
-    log_path="$LOG_DIR"$(echo $(basename "$INPUT")).csv
-    zip_log_path="$LOG_DIR"$(echo $(basename "$INPUT"))_new_zip_name.txt
-    invalid_log_path="$LOG_DIR"$(echo $(basename "$INPUT"))_invalid_zip_name.csv
-    if [[ $mode == "TEST" ]] ;then 
-      echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME,MOVED TO" > $log_path;
-      printf "" > $zip_log_path;
-      echo "OLD ZIP NAME,NEW ZIP NAME,Move to" > $invalid_log_path
-    fi
+    echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME,MOVED TO" > $log_path;
+    echo "" > $zip_log_path;
     files=$(ls -S "$INPUT"| egrep '\.zip$|\.Zip$|\.ZIP$')
     while read file; do
       file="$INPUT/$file"
       if [ ! -f "$file" ];then continue;fi
       total=$((total+1))
       if [[ $mode == "TEST" ]];then
-        check_zip_file "$file" "$log_path" "$zip_log_path" "$invalid_log_path" $total
+        check_zip_file "$file" "$log_path" "$zip_log_path" $total
       else
-        process_zip_file "$file" $total
+        process_zip_file "$file" "$log_path" "$zip_log_path" $total
       fi
       echo
     done <<< "$files"
   elif [[ -f "$INPUT" ]]; then
     # file
-    file_name=$(echo $(basename "$INPUT"))
-    log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')".csv"
-    zip_log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')"_new_zip_name.txt"
-    invalid_log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')"_invalid_zip_name.csv"
     if [[ $mode == "TEST" ]];then
       echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME" > $log_path
-      printf "" > $zip_log_path;
-      echo "OLD ZIP NAME,NEW ZIP NAME,Move to" > $invalid_log_path
-      check_zip_file "$INPUT" "$log_path" "$zip_log_path" "$invalid_log_path" 0
+      echo "" > $zip_log_path;
+      check_zip_file "$INPUT" "$log_path" "$zip_log_path" 0
     elif [[ $mode == "DUMMY" ]];then
       echo "OLD ZIP NAME|NEW ZIP NAME" > $log_path
-      printf "" > $zip_log_path;
-      echo "OLD ZIP NAME,NEW ZIP NAME,Move to" > $invalid_log_path
-      dummy_test "$INPUT" "$log_path" "$zip_log_path" "$invalid_log_path"
+      echo "" > $zip_log_path;
+      dummy_test "$INPUT" "$log_path" "$zip_log_path"
     else
-      process_zip_file "$INPUT"
+      echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME" > $log_path
+      echo "" > $zip_log_path;
+      process_zip_file "$INPUT" "$log_path" "$zip_log_path"
     fi
     total=$((total+1))
   else
@@ -984,15 +1001,16 @@ main(){
   echo "=============="
   if [[ $mode == "TEST" ]];then
     echo "Log file info:"
-    printf "%10s %-15s : $log_path \n" "-" "Full log"
+    printf "%10s %-15s : $log_path \n" "-" "CSV log"
     printf "%10s %-15s : $zip_log_path \n" "-" "New zip name "
-    printf "%10s %-15s : $DATABASE_FILE \n" "-" "Database "
+    printf "%10s %-15s : $full_log \n" "-" "Full log "
     echo
   elif [[ $mode == "DUMMY" ]];then
     echo "Log file info:"
     printf "%10s %-15s : $log_path \n" "-" "Full log"
     printf "%10s %-15s : $zip_log_path \n" "-" "New zip name "
   fi
+
   echo "Zip file info:"
   printf "%10s %-15s : $total \n" "-" "Total file"
   printf "%10s %-15s : $TOTAL_NON_LANG_FILE\n" "-" "Hold file"
@@ -1003,6 +1021,36 @@ main(){
   printf "%10s %-15s : $TOTAL_MEDIA_FILE\n" "-" "Total file"
   printf "%10s %-15s : $TOTAL_DEL_MEDIA_FILE\n" "-" "Deleted file"
   printf "%10s %-15s : %s\n" "-" "Deleted size" "$(convert_size $TOTAL_DEL_MEDIA_SIZE)"
+  echo
+  echo "Database file info:"
+  printf "%10s %-15s : $DATABASE_FULL \n" "-" "Full database "
+  printf "%10s %-15s : $DATABASE_AR \n" "-" "AR database "
+  printf "%10s %-15s : $DATABASE_EN \n" "-" "EN database "
+  printf "%10s %-15s : $DATABASE_ES \n" "-" "ES database "
   echo "Bye"
 }
-main
+
+
+if [[ -d "$INPUT" ]]; then
+  log_path="$LOG_DIR"$(echo $(basename "$INPUT")).csv
+  zip_log_path="$LOG_DIR"$(echo $(basename "$INPUT"))_zip_name_only.txt
+  full_log="$LOG_DIR"$(echo $(basename "$INPUT"))_full.txt
+  full_log_tmp="$full_log"".tmp"
+elif [[ -f "$INPUT" ]]; then
+  file_name=$(echo $(basename "$INPUT"))
+  log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')".csv"
+  zip_log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')"_new_zip_name.txt"
+  full_log="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')"_full.txt"
+  full_log_tmp="$full_log"".tmp"
+else
+  echo "$INPUT is not valid"
+  exit 2
+fi
+
+if [[ $timestamp == "off" ]];then
+  main "$log_path" "$zip_log_path"| tee "$full_log_tmp"
+else
+  main "$log_path" "$zip_log_path"| while IFS= read -r line; do printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee "$full_log_tmp"
+fi
+sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" "$full_log_tmp" > "$full_log"
+rm -rf "$full_log_tmp"

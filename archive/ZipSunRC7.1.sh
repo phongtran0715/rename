@@ -125,7 +125,7 @@ is_subdir(){
   base_dir=$(echo $(basename "$dir"))
   base_dir=$(echo ${base_dir^^})
   for i in "${!SUB_DIR_LISTS[@]}";do
-    if [[ "$base_dir" == *"${SUB_DIR_LISTS[$i]}"* ]];then
+    if [[ "$base_dir" == *"${SUB_DIR_LISTS[$i]}"* && "$base_dir" != *"PRV"* ]];then
       return 0 #true
     fi
   done
@@ -581,7 +581,6 @@ dummy_test(){
     if ! validate_zip_name $new_zip_name;then
       printf "${GRAY}($index)Zip\t: %-50s - %s - Invalid new zip name - Moved to : $OTHER_DIR${NC}\n" \
       "$old_zip_name" "$new_zip_name"
-      echo "$old_zip_name,$new_zip_name,$OTHER_DIR"  >> $invalid_log_path
       continue
     fi
     echo "$old_zip_name,$new_zip_name"  >> $log_path
@@ -644,8 +643,7 @@ check_zip_file(){
   local file_path="$1"
   local log_path="$2"
   local zip_log_path="$3"
-  local invalid_log_path="$4"
-  local index=$5
+  local index=$4
   count=1
   echo "----------"
   # check rename zip file
@@ -658,7 +656,7 @@ check_zip_file(){
   if [ ! -z $default_lang ];then
     hold_dir=$(get_hold_dir "$new_video_name")
     if [ ! -z "$hold_dir" ];then
-      printf "${GRAY}($index) File : %-50s -> - Language not match - Moved to : %s${NC}\n" "$old_zip_name" "$hold_dir/"
+      printf "${GRAY}($index) File : %-50s -> - Language not match - Moved to : %s${NC}\n" "$old_zip_name" "$hold_dir"
       echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$hold_dir"  >> $log_path
       TOTAL_NON_LANG_FILE=$(($TOTAL_NON_LANG_FILE + 1))
       return
@@ -668,7 +666,6 @@ check_zip_file(){
   if ! validate_zip_name $new_zip_name;then
     printf "${GRAY}($index)Zip\t: %-50s - %s - Invalid new zip name - Moved to : $OTHER_DIR${NC}\n" \
     "$old_zip_name" "$new_zip_name"
-    echo "$old_zip_name,$new_zip_name,$OTHER_DIR"  >> $invalid_log_path
     return
   fi
   
@@ -702,7 +699,7 @@ check_zip_file(){
   echo -e "Size\t:" "$(convert_size $zipSize)" " - Moved to : $target_folder"
   echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$target_folder"  >> $log_path
   echo "$new_no_ext"  >> $zip_log_path
-  insert_db "$old_zip_name" "$new_zip_name" "$zipSize" "$zip_dir_name"
+  # insert_db "$old_zip_name" "$new_zip_name" "$zipSize" "$zip_dir_name"
   echo
 
   # Read zip content file
@@ -723,7 +720,7 @@ check_zip_file(){
         old_video_name=${arrFiles[$i]}
         new_video_name=$(standardized_name "$zip_dir_name/$old_video_name" "MOVIE")
         if [[ $new_video_name == "NOT-MATCH"* ]]; then
-          printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
+          # printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
           count=$(($count +1))
           continue
         fi
@@ -796,7 +793,7 @@ process_zip_file(){
     printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
       "$old_zip_name" "$(convert_size $zipSize)"
     mv -f "$file_path" "$DELETED_DIR";
-    TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE)
+    TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE +1))
     TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
     return;
   fi
@@ -862,7 +859,7 @@ process_zip_file(){
         new_video_name=$(standardized_name "$file" "MOVIE")
         if [[ $new_video_name == "NOT-MATCH"* ]]; then
           # check matching video name
-          printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
+          # printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
           continue
         fi
 
@@ -939,11 +936,9 @@ main(){
     # directory
     log_path="$LOG_DIR"$(echo $(basename "$INPUT")).csv
     zip_log_path="$LOG_DIR"$(echo $(basename "$INPUT"))_new_zip_name.txt
-    invalid_log_path="$LOG_DIR"$(echo $(basename "$INPUT"))_invalid_zip_name.csv
     if [[ $mode == "TEST" ]] ;then 
       echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME,MOVED TO" > $log_path;
       printf "" > $zip_log_path;
-      echo "OLD ZIP NAME,NEW ZIP NAME,Move to" > $invalid_log_path
     fi
     files=$(ls -S "$INPUT"| egrep '\.zip$|\.Zip$|\.ZIP$')
     while read file; do
@@ -951,7 +946,7 @@ main(){
       if [ ! -f "$file" ];then continue;fi
       total=$((total+1))
       if [[ $mode == "TEST" ]];then
-        check_zip_file "$file" "$log_path" "$zip_log_path" "$invalid_log_path" $total
+        check_zip_file "$file" "$log_path" "$zip_log_path" $total
       else
         process_zip_file "$file" $total
       fi
@@ -962,17 +957,14 @@ main(){
     file_name=$(echo $(basename "$INPUT"))
     log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')".csv"
     zip_log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')"_new_zip_name.txt"
-    invalid_log_path="$LOG_DIR"$(echo $file_name | cut -f 1 -d '.')"_invalid_zip_name.csv"
     if [[ $mode == "TEST" ]];then
       echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME" > $log_path
       printf "" > $zip_log_path;
-      echo "OLD ZIP NAME,NEW ZIP NAME,Move to" > $invalid_log_path
-      check_zip_file "$INPUT" "$log_path" "$zip_log_path" "$invalid_log_path" 0
+      check_zip_file "$INPUT" "$log_path" "$zip_log_path" 0
     elif [[ $mode == "DUMMY" ]];then
       echo "OLD ZIP NAME|NEW ZIP NAME" > $log_path
       printf "" > $zip_log_path;
-      echo "OLD ZIP NAME,NEW ZIP NAME,Move to" > $invalid_log_path
-      dummy_test "$INPUT" "$log_path" "$zip_log_path" "$invalid_log_path"
+      dummy_test "$INPUT" "$log_path" "$zip_log_path"
     else
       process_zip_file "$INPUT"
     fi
@@ -986,6 +978,7 @@ main(){
     echo "Log file info:"
     printf "%10s %-15s : $log_path \n" "-" "Full log"
     printf "%10s %-15s : $zip_log_path \n" "-" "New zip name "
+    printf "%10s %-15s : $full_log \n" "-" "Full log "
     printf "%10s %-15s : $DATABASE_FILE \n" "-" "Database "
     echo
   elif [[ $mode == "DUMMY" ]];then
@@ -1005,4 +998,9 @@ main(){
   printf "%10s %-15s : %s\n" "-" "Deleted size" "$(convert_size $TOTAL_DEL_MEDIA_SIZE)"
   echo "Bye"
 }
-main
+
+full_log="$LOG_DIR""ZipSun_"$(date +%s)".txt"
+full_log_tmp="$full_log"".tmp"
+main | tee "$full_log_tmp"
+sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" "$full_log_tmp" > "$full_log"
+rm -rf "$full_log_tmp"

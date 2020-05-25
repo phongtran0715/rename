@@ -702,7 +702,7 @@ check_zip_file(){
   echo -e "Size\t:" "$(convert_size $zipSize)" " - Moved to : $target_folder"
   echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$target_folder"  >> $log_path
   echo "$new_no_ext"  >> $zip_log_path
-  insert_db "$old_zip_name" "$new_zip_name" "$zipSize" "$zip_dir_name"
+  # insert_db "$old_zip_name" "$new_zip_name" "$zipSize" "$zip_dir_name"
   echo
 
   # Read zip content file
@@ -796,7 +796,7 @@ process_zip_file(){
     printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
       "$old_zip_name" "$(convert_size $zipSize)"
     mv -f "$file_path" "$DELETED_DIR";
-    TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE)
+    TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE +1))
     TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
     return;
   fi
