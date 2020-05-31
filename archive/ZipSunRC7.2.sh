@@ -97,6 +97,7 @@ then
    echo "Some or all of the parameters are empty";
    helpFunction
 fi
+
 get_db_file(){
   local name="$1"
   lang=$(echo "$name" | cut -f1 -d"-")
@@ -699,7 +700,7 @@ check_zip_file(){
   if [ $zipSize -lt $DELETE_THRESHOLD ]; then
     printf "${RED}($index)Zip\t: %-50s - Size : %s - Fize size invalid - Moved to : $DELETED_DIR${NC}\n" \
       "$old_zip_name" "$(convert_size $zipSize)"
-    echo "$old_no_ext,under 50MB,$(convert_size $zipSize),,$DELETED_DIR"  >> $log_path
+    echo "$old_no_ext,under $(convert_size $DELETE_THRESHOLD),$(convert_size $zipSize),,$DELETED_DIR"  >> $log_path
     TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE + 1))
     TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
     return;
@@ -821,7 +822,7 @@ process_zip_file(){
   if [ $zipSize -lt $DELETE_THRESHOLD ]; then
     printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
       "$old_zip_name" "$(convert_size $zipSize)"
-    echo "$old_no_ext,under 50MB,$(convert_size $zipSize),,$DELETED_DIR"  >> $log_path
+    echo "$old_no_ext,under $(convert_size $DELETE_THRESHOLD),$(convert_size $zipSize),,$DELETED_DIR"  >> $log_path
     mv -f "$file_path" "$DELETED_DIR";
     TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE +1))
     TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))

@@ -10,9 +10,9 @@
 ###################################################################
 
 # Source directory list
-path_EN="/mnt/restore/TEST_COPY/EN"
-path_ES="/mnt/restore/TEST_COPY/ES"
-path_AR="/mnt/restore/TEST_COPY/AR"
+path_EN="/mnt/restore/EN"
+path_ES="/mnt/restore/ES"
+path_AR="/mnt/restore/AR"
 
 # Destination  directory list
 upload_EN="/mnt/restore/TEST_COPY/upload_EN"
