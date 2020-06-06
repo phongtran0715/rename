@@ -60,7 +60,7 @@ TOTAL_DEL_MEDIA_SIZE=0
 
 function DEBUG()
 {
-  [ "$_DEBUG" == "on" ] && $@ || :
+  [ "$_DEBUG" == "msg" ] && $@ || :
 }
 
 helpFunction()
@@ -505,7 +505,6 @@ standardized_name(){
     echo "" > "$gzip_date_path"
     echo "" > "$gzip_name_path"
   fi
-  DEBUG echo "000 : $file_path"
   local old_name=$(basename "$file_path")
   local path=$(dirname "$file_path")
   local name=$old_name
@@ -514,7 +513,6 @@ standardized_name(){
     ext=$(echo $name | cut -d '.' -f2-)
     name=$(echo $name | cut -d '.' -f 1)
   fi
-  DEBUG echo "001 : $name"
 
   # convert from UTF-8 to ASCII 
   name=$(echo "$name" | iconv -f UTF-8 -t ASCII//TRANSLIT)
@@ -524,7 +522,6 @@ standardized_name(){
 
   #Remove illegal characters
   name=$(echo $name | sed 's/[^.a-zA-Z0-9_-]//g')
-  DEBUG echo "002 : $name"
 
   #Convert lower case to upper case
   name=$(echo ${name^^})
@@ -546,16 +543,13 @@ standardized_name(){
     new_str="-"${match:1}
     name=${name/$match/$new_str}
   fi
-  DEBUG echo "003 : $name"
 
   #remove neglect keywork
   name=$(remove_blacklist_keyword "$name")
   if [[ $name = *_ ]]; then name=${name::-1}; fi
   if [[ $name = _* ]]; then name=${name:1}; fi
-  DEBUG echo "004 : $name"
 
   name=$(process_episode "$name")
-  DEBUG echo "005 : $name"
 
   # reorder element
   if [[ $type == "MOVIE" ]];then
@@ -564,7 +558,6 @@ standardized_name(){
     name=$(order_zip_element "$old_name" "$name" "$path")
   fi
   if [ ! -z ${ext+x} ]; then name=$name".$ext"; fi
-  DEBUG echo "006 : $name"
   #Remove duplicate chracter (_, -)
   tmp_name=""
   pc=""
@@ -729,22 +722,28 @@ check_zip_file(){
   # insert_db "$old_zip_name" "$new_zip_name" "$zipSize" "$zip_dir_name"
   echo
 
+  # Get root zip directory name
+  root_dir_name=$(basename $(zipinfo -1 "$file_path" | head -n 1))
   # Read zip content file
-  tmpDirs=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
+  tmpDirs==$(unzip -Z -1 "$file_path" "*/" | cut -f 2 -d "/" | sort | uniq)
   IFS=$'\n' read -rd '' -a dirs <<<"$tmpDirs"
+  
   for d in "${dirs[@]}";do
     if is_subdir "$d";then
       echo
       d=$(basename "$d")
       echo -e "Folder\t: [" $d "]"
       # List all file in sub folder
-      tmpFiles=$(unzip -Zl "$file_path" "*/$d/*" | rev| cut -d '/' -f 1 | rev | sort -nr)
-      tmpSizes=$(unzip -Zl "$file_path" "*/$d/*" | awk '{print $4}' | sort -nr)
+      tmpFiles=$(unzip -Zl -1 "$file_path" "$root_dir_name/$d/*" | egrep '.mp4|.mov|.mxf' | sort -nr)
+      tmpSizes=$(unzip -Zl "$file_path" "$root_dir_name/$d/*" | egrep '.mp4|.mov|.mxf' | awk '{print $4}' | sort -nr)
       IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
       IFS=$'\n' read -rd '' -a arrSizes <<<"$tmpSizes"
 
       for i in "${!arrFiles[@]}";do
-        old_video_name=${arrFiles[$i]}
+        # Only get file in root folder
+        num_path=$(echo "${arrFiles[$i]}" | grep -o '/' - | wc -l)
+        if [ $num_path -ne 2 ];then continue;fi
+        old_video_name=$(basename "${arrFiles[$i]}")
         new_video_name=$(standardized_name "$zip_dir_name/$old_video_name" "MOVIE")
         if [[ $new_video_name == "NOT-MATCH"* ]]; then
           printf "${GRAY}($count) \t: %-50s -> Not match with zip file name. Ignored!${NC}\n" "$old_video_name"
@@ -758,27 +757,23 @@ check_zip_file(){
           count=$(($count +1))
           continue;
         fi
-        ext="${arrFiles[$i]#*.}"
-        if [[ $ext == "mp4" ]] || [[ $ext == "mxf" ]] || [[ $ext == "mov" ]];then
-          TOTAL_MEDIA_FILE=$(($TOTAL_MEDIA_FILE + 1))
-          #check new video name existed or not
-          if list_contain "$new_video_name" "${!ARR_MOVIES[@]}";then
-            #found
-            printf "${RED}($count)\t: %-50s -> %s ${NC}\n" "$old_video_name" "$new_video_name"
-            printf "${RED}Size : $(convert_size ${arrSizes[$i]}) - Duplicated - Move to $DELETED_DIR)${NC}\n"
-            count=$(($count +1))
-            TOTAL_DEL_MEDIA_FILE=$(($TOTAL_DEL_MEDIA_FILE + 1))
-            TOTAL_DEL_MEDIA_SIZE=$(($TOTAL_DEL_MEDIA_SIZE + ${arrSizes[$i]}))
-            continue
-          else
-            #not found
-            printf "($count) \t: %-50s -> $new_video_name\n" "$old_video_name"
-            ARR_MOVIES+=(["$new_video_name"]=${arrSizes[$i]})
-            target_folder=$(get_target_folder ${new_video_name:0:2} ${arrSizes[$i]})
-            echo -e "Size\t:" "$(convert_size ${arrSizes[$i]})" " - Moved to : $target_folder"
-          fi
-          echo ",,,$d/$new_video_name,$target_folder" >> $log_path
+        TOTAL_MEDIA_FILE=$(($TOTAL_MEDIA_FILE + 1))
+        if list_contain "$new_video_name" "${!ARR_MOVIES[@]}";then
+          #found
+          printf "${RED}($count)\t: %-50s -> %s ${NC}\n" "$old_video_name" "$new_video_name"
+          printf "${RED}Size : $(convert_size ${arrSizes[$i]}) - Duplicated - Move to $DELETED_DIR)${NC}\n"
+          count=$(($count +1))
+          TOTAL_DEL_MEDIA_FILE=$(($TOTAL_DEL_MEDIA_FILE + 1))
+          TOTAL_DEL_MEDIA_SIZE=$(($TOTAL_DEL_MEDIA_SIZE + ${arrSizes[$i]}))
+          continue
+        else
+          #not found
+          printf "($count) \t: %-50s -> $new_video_name\n" "$old_video_name"
+          ARR_MOVIES+=(["$new_video_name"]=${arrSizes[$i]})
+          target_folder=$(get_target_folder ${new_video_name:0:2} ${arrSizes[$i]})
+          echo -e "Size\t:" "$(convert_size ${arrSizes[$i]})" " - Moved to : $target_folder"
         fi
+        echo ",,,$d/$new_video_name,$target_folder" >> $log_path
         count=$(($count +1))
       done
     fi
@@ -818,7 +813,7 @@ process_zip_file(){
     continue
   fi
 
-  validate zip size
+  # validate zip size
   if [ $zipSize -lt $DELETE_THRESHOLD ]; then
     printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
       "$old_zip_name" "$(convert_size $zipSize)"
@@ -859,7 +854,8 @@ process_zip_file(){
   echo
 
   # Read zip content file
-  tmpDirs=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
+  # tmpDirs=$(unzip -l "$file_path" "*/" | awk '/\/$/ { print $NF }')
+  tmpDirs==$(unzip -Z -1 "$file_path" "*/" | cut -f 2 -d "/" | sort | uniq)
   IFS=$'\n' read -rd '' -a dirs <<<"$tmpDirs"
 
   unset sub_folder;
@@ -874,15 +870,21 @@ process_zip_file(){
     # unzip
     rm -rf "$TMP_DIR"
     mkdir -p "$TMP_DIR"
-    for i in "${sub_folder[@]}";do
+    # Get root zip directory name
+    root_dir_name=$(basename $(zipinfo -1 "$file_path" | head -n 1))
+    for d in "${sub_folder[@]}";do
       echo
-      echo -e "Unziping " $(basename $i) "... "
-      unzip -jo -qq  "$file_path" "$i*.mp4" -d "$TMP_DIR"
-      unzip -jo -qq  "$file_path" "$i*.MP4" -d "$TMP_DIR"
-      unzip -jo -qq "$file_path" "$i*.mov" -d "$TMP_DIR"
-      unzip -jo -qq "$file_path" "$i*.MOV" -d "$TMP_DIR"
-      unzip -jo -qq "$file_path" "$i*.mxf" -d "$TMP_DIR"
-      unzip -jo -qq "$file_path" "$i*.MXF" -d "$TMP_DIR"
+      echo -e "Unziping folder ["$(basename $d)"]... "
+      # List all file in sub folder
+      tmpFiles=$(unzip -Zl -1 "$file_path" "$root_dir_name/$d/*" | egrep '.mp4|.mov|.mxf' | sort -nr)
+      IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
+      for i in "${!arrFiles[@]}";do
+        # Only get file in root folder
+        num_path=$(echo "${arrFiles[$i]}" | grep -o '/' - | wc -l)
+        if [ $num_path -ne 2 ];then continue;fi
+        unzip -jo -qq  "$file_path" "${arrFiles[$i]}" -d "$TMP_DIR"
+      done
+
       files=$(ls -S "$TMP_DIR")
       while read file; do
         count=$(($count +1))
@@ -1037,6 +1039,7 @@ main(){
   echo "Bye"
 }
 
+if [[ "$_DEBUG" != "msg" ]] && [[ "$_DEBUG" != "dbg" ]];then _DEBUG="msg"; fi
 
 if [[ -d "$INPUT" ]]; then
   log_path="$LOG_DIR"$(echo $(basename "$INPUT")).csv
