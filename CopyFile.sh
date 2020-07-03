@@ -26,6 +26,8 @@ DEST_DIR=( "$upload_EN" "$upload_ES" "$upload_AR")
 NUMBER_COPY_FILE=20
 IS_BUSY=0
 
+FOLDER_SIZE_THRESHOLD=$((1 *1024)) #Threshold 1Mb
+
 validate_folder(){
     if [ ! -d "$path_EN" ]; then 
         printf "Warning! Directory doesn't existed [$path_EN]\n"; fi
@@ -47,23 +49,51 @@ move_file(){
     local dest_dir="$2"
     count=0
     if [ ! -d "$source_dir" ] || [ ! -d "$dest_dir" ]; then return; fi
-    for entry in "$source_dir"/*
-    do
-        if [ $count -lt $NUMBER_COPY_FILE ];then
-            mv -f "$entry" "$dest_dir"
-            count=$((count + 1))
-        else
-            break
-        fi
-    done
-    echo "$count file was copied from [$source_dir] to [$dest_dir]"
+    # check source is empty
+    if [ ! -z "$(find "$source_dir" -maxdepth 1 -type f)" ]; then
+      for entry in "$source_dir"/*
+        do
+            if [ $count -lt $NUMBER_COPY_FILE ];then
+                mv -f "$entry" "$dest_dir"
+                count=$((count + 1))
+            else
+                break
+            fi
+        done
+    fi
+    if [ $count -gt 0 ];then
+        echo "$count file was copied from [$source_dir] to [$dest_dir]"
+    fi
 }
+
+validate_sub_directory(){
+    local dir="$1"
+    dir_size=$(du -s "$dir" | awk '{printf $1}')
+    if [ $dir_size -lt $FOLDER_SIZE_THRESHOLD ];then
+        echo "Removing folder $dir"
+        rm -rf "$dir"
+    fi
+}
+
 main(){
     validate_folder
     if [ $IS_BUSY -eq 0 ];then
         IS_BUSY=1
         for i in "${!DEST_DIR[@]}";do
-            if [ -z "$(ls -A ${DEST_DIR[$i]} )" ]; then
+            # Validate sub directory
+            echo
+            echo "Checking folder : ${DEST_DIR[$i]}"
+            lines=$(find "${DEST_DIR[$i]}" -maxdepth 1 -type d | tail -n +2)
+            while IFS= read -r d
+            do
+                if [ -d "$d" ];then
+                    validate_sub_directory "$d"
+                fi
+            done < <(printf '%s\n' "$lines")
+
+            #  check and copy file
+            if [ -z "$(find "${DEST_DIR[$i]}" -maxdepth 1 -type f)" ]; then
+                # no file existed
                 move_file "${SOURCE_DIR[$i]}" "${DEST_DIR[$i]}"
             fi
         done
