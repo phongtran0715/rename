@@ -45,16 +45,16 @@ validate_folder(){
 }
 
 move_file(){
-    local source_dir="$1"
-    local dest_dir="$2"
+    local s_dir="$1"
+    local d_dir="$2"
     count=0
-    if [ ! -d "$source_dir" ] || [ ! -d "$dest_dir" ]; then return; fi
+    if [ ! -d "$s_dir" ] || [ ! -d "$d_dir" ]; then return; fi
     # check source is empty
-    if [ ! -z "$(find "$source_dir" -maxdepth 1 -type f)" ]; then
-      for entry in "$source_dir"/*
+    if [ ! -z "$(find "$s_dir" -maxdepth 1 -type f)" ]; then
+      for entry in "$s_dir"/*
         do
             if [ $count -lt $NUMBER_COPY_FILE ];then
-                mv -f "$entry" "$dest_dir"
+                mv -f "$entry" "$d_dir"
                 count=$((count + 1))
             else
                 break
@@ -62,7 +62,7 @@ move_file(){
         done
     fi
     if [ $count -gt 0 ];then
-        echo "$count file was copied from [$source_dir] to [$dest_dir]"
+        echo "$count file was copied from [$s_dir] to [$d_dir]"
     fi
 }
 

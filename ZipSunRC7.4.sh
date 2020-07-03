@@ -38,6 +38,10 @@ DATABASE_AR="/mnt/restore/ar_db.csv"
 DATABASE_EN="/mnt/restore/en_db.csv"
 DATABASE_ES="/mnt/restore/es_db.csv"
 
+TARGET_DIR_LIST=( "$AR_OVER_DIR" "$EN_OVER_DIR" "$ES_OVER_DIR" "$FR_OVER_DIR"
+  "$AR_UNDER_DIR" "$EN_UNDER_DIR" "$ES_UNDER_DIR" "$FR_UNDER_DIR"
+  "$AR_HOLD_DIR" "$EN_HOLD_DIR" "$ES_HOLD_DIR" "$FR_HOLD_DIR")
+
 #Zip file size threshold
 THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
 DELETE_THRESHOLD=$((25 * 1024 * 1024)) #25Mb
@@ -98,6 +102,26 @@ then
    helpFunction
 fi
 
+create_group(){
+    local input_path="$1"
+    count=0
+    if [ ! -d "$input_path" ]; then 
+        return
+    fi
+    # get all zip file in this directory
+    files=$(ls -S "$input_path"| egrep '\.zip$|\.Zip$|\.ZIP$')
+    while read file_name; do
+      if [ -z "$file_name" ];then continue; fi
+      name_no_ext=$(echo $file_name | cut -f 1 -d '.')
+      path="$input_path/$name_no_ext"
+      # create folder
+      mkdir -p "$path"
+      # move file to folder
+      mv -f "$path"* "$path/" > /dev/null 2>&1
+      count=$((count+1))
+    done <<< "$files"
+}
+
 get_db_file(){
   local name="$1"
   lang=$(echo "$name" | cut -f1 -d"-")
@@ -121,7 +145,10 @@ insert_db(){
   new_record="$1","$2","$3","$4"
   compare_str="$2","$3"
   db_children_file=$(get_db_file "$new_name")
-  
+  #create db file if ti doesn't existed
+  if [ ! -f "$db_children_file" ];then
+    touch "$db_children_file"
+  fi
   #insert to children 
   if [ ! -z "$db_children_file" ];then
     match=$(cat $db_children_file | grep "$compare_str")
@@ -130,8 +157,11 @@ insert_db(){
     fi
   fi
   
+  if [ ! -f "$DATABASE_FULL" ];then
+    touch "$DATABASE_FULL"
+  fi
   # insert to db parent file
-  match=$(cat $DATABASE_FULL | grep "$compare_str")
+  match=$(cat "$DATABASE_FULL" | grep "$compare_str")
   if [ -z "$match" ];then
     echo "$new_record" >> "$DATABASE_FULL"
   fi
@@ -1089,3 +1119,10 @@ else
 fi
 sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" "$full_log_tmp" > "$full_log"
 rm -rf "$full_log_tmp"
+
+# group zip file and video file
+if [[ $mode == "RUN" ]];then
+  for i in "${!TARGET_DIR_LIST[@]}";do
+    create_group "${TARGET_DIR_LIST[$i]}"
+  done
+fi
