@@ -7,10 +7,22 @@
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
-DEST_PATH="/mnt/restore/TEST_FILTER/OUTPUT/"
-DELETE_PATH="/mnt/restore/TEST_FILTER/DELETE/"
-DB_PATH="/mnt/restore/TEST_FILTER/DB"
-MAX_FILE=2
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GRAY='\033[1;30m'
+NC='\033[0m'
+
+# This folder contain the biggest zip files
+DEST_PATH="/mnt/restore/OUTPUT/"
+
+# This folder contain zip file that have size less than the biggest size
+DELETE_PATH="/mnt/restore/__DEL/"
+
+# This folder contain log file
+LOG_PATH="/mnt/restore/"
+
+# Max number zip file per output folder
+MAX_FILE=200
 
 helpFunction()
 {
@@ -18,8 +30,8 @@ helpFunction()
   echo "Usage: $0 [option] folder_path"
   echo -e "Example : ./ZipFilter -c /home/jack/Video"
   echo -e "option:"
-  echo -e "\t-c Check rename function"
-  echo -e "\t-x Apply rename function"
+  echo -e "\t-c Check filter command"
+  echo -e "\t-x Apply filter command"
   exit 1
 }
 
@@ -72,15 +84,21 @@ move_biggest_zip(){
 }
 
 main(){
+    validate=0
+    if [ ! -d "$DEST_PATH" ]; then printf "${RED}Error! Directory doesn't exist [DEST_PATH][$DEST_PATH]${NC}\n"; validate=1; fi
+    if [ ! -d "$DELETE_PATH" ]; then printf "${RED}Error! Directory doesn't exist [DELETE_PATH][$DELETE_PATH]${NC}\n"; validate=1; fi
+    if [ ! -d "$LOG_PATH" ]; then printf "${RED}Error! Directory doesn't exist [LOG_PATH][$LOG_PATH]${NC}\n"; validate=1; fi
+    if [ $validate -eq 1 ];then return;fi
+
     echo "Working directory : $INPUT"
     # TODO : check db file esited or not
-    db_net="$DB_PATH/$(basename "$INPUT").csv"
+    db_net="$LOG_PATH/$(basename "$INPUT").csv"
     echo "Name, Size, Path, IsBiggest, Move to" > "$db_net"
 
     if [[ -d "$INPUT" ]]; then
         # find all unique zip file name
         unique_names=$(find "$INPUT" -type f  -iname "*.zip" -printf "%f\n" | sed 's/-.*//g' | sort --unique)
-        while read name; do
+        while IFS= read -r name; do
             # find all zip file by name
             files=$(find "$INPUT" -type f -iname "$name" -printf "%s %p\n" | sort -rn | sed 's/^[0-9]* //')
             count=0
@@ -106,7 +124,7 @@ main(){
                     count=$((count+1))
                 fi
             done < <(printf '%s\n' "$files")
-        done <<< "$unique_names"
+        done < <(printf '%s\n' "$unique_names")
    fi
    echo "Log file : $db_net"
 }

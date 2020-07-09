@@ -1030,8 +1030,9 @@ main(){
     echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME,MOVED TO" > $log_path;
     echo "" > $zip_log_path;
     files=$(ls -S "$INPUT"| egrep '\.zip$|\.Zip$|\.ZIP$')
-    while read file; do
+    while IFS= read -r file; do
       file="$INPUT/$file"
+      echo "phong : $file"
       if [ ! -f "$file" ];then continue;fi
       total=$((total+1))
       if [[ $mode == "TEST" ]];then
@@ -1040,7 +1041,7 @@ main(){
         process_zip_file "$file" "$log_path" "$zip_log_path" $total
       fi
       echo
-    done <<< "$files"
+    done < <(printf '%s\n' "$files")
   elif [[ -f "$INPUT" ]]; then
     # file
     if [[ $mode == "TEST" ]];then
