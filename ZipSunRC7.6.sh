@@ -592,7 +592,6 @@ standardized_name(){
   tmp_name=""
   pc=""
   for (( i=$((${#name} -1)); i>=0; i-- )); do
-  # for (( i=0; i<${#name}; i++ )); do
     c="${name:$i:1}"
     if [[ $c == "_" ]] || [[ $c == "-" ]];then
       if [[ $pc == "_" ]] || [[ $pc == "-" ]]; then continue;
@@ -601,6 +600,9 @@ standardized_name(){
     pc=$c
   done
   name=$tmp_name
+
+  name=${name/"ES-ST"/"ES-RT"}
+  name=${name/"E-SH"/"ES-RT"}
   echo $name
 }
 
