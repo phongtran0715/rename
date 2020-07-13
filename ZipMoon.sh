@@ -1,4 +1,14 @@
+
 #!/bin/bash
+###################################################################
+#Script Name    : ZipMoon
+#Description    : 
+#                
+#Version        : 1.2
+#Notes          : None                                             
+#Author         : phongtran0715@gmail.com
+###################################################################
+
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 GRAY='\033[1;30m'
@@ -49,7 +59,7 @@ helpFunction()
 {
   echo ""
   echo "Usage: $0 [option] folder_path [option] language"
-  echo -e "Example : ./rename -c /home/jack/Video -l AR"
+  echo -e "Example : ./ZipMoonRC2.sh -c /home/jack/Video -l AR"
   echo -e "option:"
   echo -e "\t-c Check rename function"
   echo -e "\t-x Apply rename function"

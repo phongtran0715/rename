@@ -4,7 +4,7 @@
 #Description    : This script will copy file by rule:
 #                 If destination folde is empty , 20 files will be copied
 #                 from source folder to destination folder
-#Version        : 1.0
+#Version        : 1.1
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
