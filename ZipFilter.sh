@@ -3,7 +3,7 @@
 #Script Name    : ZipFilter
 #Description    : This script loop through all zip file in subfolder
 #                 Find the biggest zip file size and copy to targer folder
-#Version        : 1.0
+#Version        : 1.3
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -13,16 +13,22 @@ GRAY='\033[1;30m'
 NC='\033[0m'
 
 # This folder contain the biggest zip files
-DEST_PATH="/mnt/restore/OUTPUT/"
+DEST_PATH="/mnt/restore/UPLOAD"
 
 # This folder contain zip file that have size less than the biggest size
-DELETE_PATH="/mnt/restore/__DEL/"
+DELETE_PATH="/mnt/restore/__DELBIG/"
 
 # This folder contain log file
-LOG_PATH="/mnt/restore/"
+LOG_PATH="/mnt/ajplus/Admin"
 
 # Max number zip file per output folder
 MAX_FILE=200
+
+TOTAL_FILE_DELETE=0
+TOTAL_SIZE_DELETE=0
+
+TOTAL_FILE_BIGGEST=0
+TOTAL_SIZE_BIGGEST=0
 
 helpFunction()
 {
@@ -59,7 +65,6 @@ move_biggest_zip(){
     name=$(basename "$file")
     path=$(dirname "$file")
     size=$(get_file_size "$file")
-    # TODO : check file existed in target folder
     num_folder=$(find "$DEST_PATH" -maxdepth 1 -type d | tail -n +2 | wc -l)
     if [ $num_folder -eq 0 ];then
         dest_folder="$DEST_PATH/OUT"$num_folder"/"
@@ -80,7 +85,7 @@ move_biggest_zip(){
         mkdir -p "$dest_folder"
         mv -f "$file" "$dest_folder"
     fi
-    echo "$name,$(convert_size $size),$path,Y,$dest_folder" >> "$db_net"
+    echo "$name,$(convert_size $size),$path,Y,$path,$dest_folder" >> "$db_net"
 }
 
 main(){
@@ -91,16 +96,17 @@ main(){
     if [ $validate -eq 1 ];then return;fi
 
     echo "Working directory : $INPUT"
-    # TODO : check db file esited or not
     db_net="$LOG_PATH/$(basename "$INPUT").csv"
-    echo "Name, Size, Path, IsBiggest, Move to" > "$db_net"
+    echo "Name, Size, Path, IsBiggest, Source path, Move to" > "$db_net"
 
     if [[ -d "$INPUT" ]]; then
+        # count number sub folder
+        num_sub_dirs=$(find "$INPUT" -maxdepth 1 -type d | tail -n +2 | wc -l)
         # find all unique zip file name
-        unique_names=$(find "$INPUT" -type f  -iname "*.zip" -printf "%f\n" | sed 's/-.*//g' | sort --unique)
+        unique_names=$(find "$INPUT" -type f  -iname "*.zip" -printf "%f\n" | sort --unique)
         while IFS= read -r name; do
             # find all zip file by name
-            files=$(find "$INPUT" -type f -iname "$name" -printf "%s %p\n" | sort -rn | sed 's/^[0-9]* //')
+            files=$(find "$INPUT" -type f -iname "$name" -printf "%s %p\n" | sort -rn| sed 's/^[0-9]* //')
             count=0
             while IFS= read -r f
             do
@@ -112,23 +118,43 @@ main(){
                     if [ $count -eq 0 ];then 
                         isBiggest="Y"
                         move_biggest_zip "$f"
+                        TOTAL_FILE_BIGGEST=$((TOTAL_FILE_BIGGEST + 1))
+                        TOTAL_SIZE_BIGGEST=$((TOTAL_SIZE_BIGGEST + $size))
                     else
                         isBiggest="N"
                         #move file to delete folder
                         echo "Moving [$f] to [$DELETE_PATH]"
                         if [[ $mode == "RUN" ]];then
-                            mv -f  "$value" "$DELETE_PATH"
+                            mv -f  "$value" "$DELETE_PATH/"
                         fi
-                        echo "$file_name,$(convert_size $size),$path,$isBiggest,$DELETE_PATH" >> "$db_net"
+                        TOTAL_FILE_DELETE=$((TOTAL_FILE_DELETE + 1))
+                        TOTAL_SIZE_DELETE=$((TOTAL_SIZE_DELETE + $size))
+                        echo "$file_name,$(convert_size $size),$path,$isBiggest,$(dirname "$value"), $DELETE_PATH" >> "$db_net"
                     fi
                     count=$((count+1))
                 fi
             done < <(printf '%s\n' "$files")
         done < <(printf '%s\n' "$unique_names")
    fi
-   echo "Log file : $db_net"
+   echo 
+   echo "===================="
+   printf "%10s %-15s : $num_sub_dirs\n" "-" "Total sub folders"
+   printf "%10s %-15s : $((TOTAL_FILE_DELETE + TOTAL_FILE_BIGGEST))\n" "-" "Total processed file"
+   TOTAL_SIZE=$((TOTAL_FILE_DELETE + TOTAL_SIZE_BIGGEST))
+   printf "%10s %-15s : %s\n" "-" "Total processed size" "$(convert_size $TOTAL_SIZE)"
+   printf "%10s %-15s : $log_file \n" "-" "Log file"
+   printf "%10s %-15s : $db_net \n" "-" "Report"
+   echo
+   printf "%10s %-15s : $TOTAL_FILE_DELETE\n" "-" "Total deleted file"
+   printf "%10s %-15s : %s\n" "-" "Total deleted size" "$(convert_size $TOTAL_SIZE_DELETE)"
+   echo
+   printf "%10s %-15s : $TOTAL_FILE_BIGGEST\n" "-" "Total biggest file"
+   printf "%10s %-15s : %s\n" "-" "Total biggest size" "$(convert_size $TOTAL_SIZE_BIGGEST)"
+   echo "===================="
+   echo "Bye"
 }
 
-main | while IFS= read -r line; do printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done
+log_file="$LOG_PATH/$(basename "$INPUT").txt"
+main | while IFS= read -r line; do printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee "$log_file"
 
 
