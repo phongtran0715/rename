@@ -3,7 +3,7 @@
 #Script Name    : ZipSun
 #Description    : This script loop through all zip file in subfolder
 #                 Rename zip fiel by our rule and move file to target folder
-#Version        : 7.7
+#Version        : 7.8
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -656,7 +656,7 @@ correct_zip_datetime(){
   local current_date="$2"
   #validate current datetime
   yy=${current_date:4:2}
-  if [ $yy -le 18 ] && [ $yy -ge 16 ];then
+  if [ $yy -le 19 ] && [ $yy -ge 13 ];then
     echo $current_date
     return
   fi
@@ -688,7 +688,7 @@ correct_zip_datetime(){
           mm=${date:2:2}
           yy=${date:4:2}
           if [ $mm -gt 12 ];then date=$mm$dd$yy; fi
-          if [ $yy -le 18 ] && [ $yy -ge 16 ];then
+          if [ $yy -le 19 ] && [ $yy -ge 13 ];then
             echo $date
             return
           fi
