@@ -3,7 +3,7 @@
 #Script Name    : ZipSun
 #Description    : This script loop through all zip file in subfolder
 #                 Rename zip fiel by our rule and move file to target folder
-#Version        : 7.8
+#Version        : 7.9
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -1027,10 +1027,27 @@ main(){
     # directory
     echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE,NEW VIDEO NAME,SOURCE PATH,MOVED TO" > $log_path;
     echo "" > $zip_log_path;
+
+    # process zip file at root directory
+    echo "*** Process zip at root folder : $INPUT"
+    files=$(ls -S "$INPUT"| egrep '\.zip$|\.Zip$|\.ZIP$')
+    while IFS= read -r file; do
+      file="$INPUT/$file"
+      if [ ! -f "$file" ];then continue;fi
+      total=$((total+1))
+      if [[ $mode == "TEST" ]];then
+        check_zip_file "$file" "$log_path" "$zip_log_path" $total
+      else
+        process_zip_file "$file" "$log_path" "$zip_log_path" $total
+      fi
+      echo
+    done < <(printf '%s\n' "$files")
+
+    # process zip file at sub directorys
     sub_dirs=$(find "$INPUT" -maxdepth 1 -type d | tail -n +2)
     TOTAL_SUB_FOLDER=0
     while IFS= read -r dir; do
-      echo "Process sub folder : $dir"
+      echo "*** Process zip at sub folder : $dir"
       files=$(ls -S "$dir"| egrep '\.zip$|\.Zip$|\.ZIP$')
       while IFS= read -r file; do
         file="$dir/$file"
