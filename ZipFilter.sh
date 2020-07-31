@@ -3,7 +3,7 @@
 #Script Name    : ZipFilter
 #Description    : This script loop through all zip file in subfolder
 #                 Find the biggest zip file size and copy to targer folder
-#Version        : 1.4
+#Version        : 1.5
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -109,21 +109,23 @@ main(){
     list_dir=""
     num_sub_dirs=0
     for argument in "${INPUT[@]}"; do
-      # echo "${argument}"
       list_dir="${argument} $list_dir "
       # count number sub folder
       num_sub_dirs=$((num_sub_dirs + $(find ${argument} -type d | tail -n +2 | wc -l)))
     done
-    echo "list input directory : $list_dir"
     
     # find all unique zip file name
+    sum=1
     unique_names=$(find $list_dir -type f  -iname "*.zip" -printf "%f\n" | sort --unique)
-    while IFS= read -r name; do
+    unique_names=($unique_names)
+    for name in "${unique_names[@]}"; do
+      echo "($sum) Process file : $name"
+      sum=$((sum + 1))
       # find all zip file by name
-      files=$(find $list_dir -type f -iname "$name" -printf "%s %p\n" | sort -rn| sed 's/^[0-9]* //')
+      files=$(find $list_dir -type f -iname "$name" -printf "%s %p\n" | sort -rn | sed 's/^[0-9]* //')
+      files=($files)
       count=0
-      while IFS= read -r f
-      do
+      for f in "${files[@]}"; do
         if [ ! -z "$f" ];then
           value=$(realpath "$f")
           file_name=$(basename "$value")
@@ -147,9 +149,9 @@ main(){
               echo "$file_name,$(convert_size $size),$path,$isBiggest,$(dirname "$value"), $DELETE_PATH" >> "$db_net"
           fi
           count=$((count+1))
-        fi
-      done < <(printf '%s\n' "$files")
-    done < <(printf '%s\n' "$unique_names")
+        fi 
+      done
+    done
 
    echo 
    echo "===================="
