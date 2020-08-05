@@ -54,6 +54,7 @@ get_file_size(){
 }
 
 validate_zip(){
+	# check zipfile integrity
 	local file_path="$1"
 	result=$(zip -T "$file_path" | rev | cut -d ' ' -f 1 | rev) > /dev/null
 	echo "$result"
@@ -64,9 +65,15 @@ repair_zip(){
 	file_name=$(basename "$file_path")
 	ext=$(echo $file_name | cut -d '.' -f2-)
 	name=$(echo $file_name | cut -d '.' -f 1)
-	out_file="$(dirname "$file_path")/$name-COPY.$ext"
+	out_file="$(dirname "$file_path")/$name-TMPABC.$ext"
 	zip -F "$file_path" --out "$out_file" > /dev/null
 	status=$?
+    if [[ "$status" == "0" ]];then
+    	# remove original zip file
+    	rm -rf "$file_path"
+    	# rename repaied zip file
+    	mv "$out_file" "$file_path"
+    fi
 	echo "$status"
 }
 
@@ -113,7 +120,6 @@ main(){
         		if [[ "$status" == "0" ]];then
         			repair_count=$((repair_count + 1))
         			echo "Repaired"
-        			rm -rf "$file"
         			REPAIRED_SIZE=$((REPAIRED_SIZE + $size))
         		else
         			echo "Can NOT repair file : $file"
