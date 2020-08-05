@@ -70,6 +70,7 @@ TOTAL_NON_LANG_FILE=0
 TOTAL_MEDIA_FILE=0
 TOTAL_DEL_MEDIA_FILE=0
 TOTAL_DEL_MEDIA_SIZE=0
+INVALID_ZIP=0
 
 function DEBUG()
 {
@@ -110,6 +111,12 @@ then
    echo "Some or all of the parameters are empty";
    helpFunction
 fi
+
+validate_zip(){
+  local file_path="$1"
+  result=$(zip -T "$file_path" | rev | cut -d ' ' -f 1 | rev) > /dev/null
+  echo "$result"
+}
 
 create_group(){
     local input_path="$1"
@@ -1034,6 +1041,14 @@ main(){
     while IFS= read -r file; do
       file="$INPUT/$file"
       if [ ! -f "$file" ];then continue;fi
+      #  validate zip file integrity
+      is_valid=$(validate_zip "$file")
+      echo "phongtn : $is_valid"
+      if [[ "$is_valid" != "OK" ]];then
+        printf "${RED} Invalid zip file : $file${NC}\n"
+        INVALID_ZIP=$((INVALID_ZIP + 1))
+        continue
+      fi
       total=$((total+1))
       if [[ $mode == "TEST" ]];then
         check_zip_file "$file" "$log_path" "$zip_log_path" $total
@@ -1052,6 +1067,13 @@ main(){
       while IFS= read -r file; do
         file="$dir/$file"
         if [ ! -f "$file" ];then continue;fi
+        #  validate zip file integrity
+        is_valid=$(validate_zip "$file")
+        if [[ "$is_valid" != "OK" ]];then
+          printf "${RED} Invalid zip file : $file${NC}\n"
+          INVALID_ZIP=$((INVALID_ZIP + 1))
+          continue
+        fi
         total=$((total+1))
         if [[ $mode == "TEST" ]];then
           check_zip_file "$file" "$log_path" "$zip_log_path" $total
@@ -1064,6 +1086,13 @@ main(){
     done < <(printf '%s\n' "$sub_dirs")
   elif [[ -f "$INPUT" ]]; then
     # file
+    #  validate zip file integrity
+    is_valid=$(validate_zip "$INPUT")
+    if [[ "$is_valid" != "OK" ]];then
+      printf "${RED} Invalid zip file : $file${NC}\n"
+      INVALID_ZIP=$((INVALID_ZIP + 1))
+      continue
+    fi
     if [[ $mode == "TEST" ]];then
       echo "Run as check mode (-c)"
       echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE, NEW VIDEO NAME, SOURCE PATH" > $log_path
@@ -1104,6 +1133,7 @@ main(){
   printf "%10s %-15s : $TOTAL_NON_LANG_FILE\n" "-" "Hold file"
   printf "%10s %-15s : $TOTAL_DEL_ZIP_FILE\n" "-" "Deleted file"
   printf "%10s %-15s : %s\n" "-" "Deleted size" "$(convert_size $TOTAL_DEL_ZIP_SIZE)"
+  printf "%10s %-15s : $INVALID_ZIP \n" "-" "Num invalid zip"
   echo
   echo "Media file info:"
   printf "%10s %-15s : $TOTAL_MEDIA_FILE\n" "-" "Total file"
