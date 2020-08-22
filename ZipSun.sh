@@ -3,7 +3,7 @@
 #Script Name    : ZipSun
 #Description    : This script loop through all zip file in subfolder
 #                 Rename zip fiel by our rule and move file to target folder
-#Version        : 7.9
+#Version        : 8.0
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
