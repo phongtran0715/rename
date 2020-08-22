@@ -3,7 +3,7 @@
 #Script Name    : ZipFilter
 #Description    : This script loop through all zip file in subfolder
 #                 Find the biggest zip file size and copy to targer folder
-#Version        : 1.5
+#Version        : 1.7
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -52,6 +52,10 @@ do
           done
           mode="TEST";;
       x ) INPUT+=("$OPTARG")
+          while [ "$OPTIND" -le "$#" ] && [ "${!OPTIND:0:1}" != "-" ]; do 
+            INPUT+=("${!OPTIND}")
+            OPTIND="$(expr $OPTIND \+ 1)"
+          done
           mode="RUN";;
       ? ) helpFunction ;;
    esac
@@ -94,6 +98,20 @@ move_biggest_zip(){
     echo "$name,$(convert_size $size),$path,Y,$path,$dest_folder" >> "$db_net"
 }
 
+remove_space(){
+  local dir="$1"
+  #  Loop throught all sub folder
+  list_sub_dir=$(find "$dir" -type d | tail -n +2)
+  while IFS= read -r sub_dir; do
+    for old_name in "$sub_dir/"*; do
+      file_name=$(basename "$old_name")
+      new_name=`echo "$file_name" | sed -e 's/ //g'`
+      new_name=$(dirname "$old_name")/"$new_name"
+      mv -f "$old_name" "$new_name" 2>/dev/null
+    done
+  done < <(printf '%s\n' "$list_sub_dir")
+}
+
 main(){
     validate=0
     if [ "$OPTIND" -eq "1" ] || [ "$OPTIND" -le "$#" ]; then
@@ -109,10 +127,13 @@ main(){
     list_dir=""
     num_sub_dirs=0
     for argument in "${INPUT[@]}"; do
+      remove_space "${argument}"
       list_dir="${argument} $list_dir "
       # count number sub folder
       num_sub_dirs=$((num_sub_dirs + $(find ${argument} -type d | tail -n +2 | wc -l)))
     done
+    echo "$list_dir"
+    return
     
     # find all unique zip file name
     sum=1
@@ -123,9 +144,9 @@ main(){
       sum=$((sum + 1))
       # find all zip file by name
       files=$(find $list_dir -type f -iname "$name" -printf "%s %p\n" | sort -rn | sed 's/^[0-9]* //')
-      files=($files)
+      # files=($files)
       count=0
-      for f in "${files[@]}"; do
+      while IFS= read -r f; do
         if [ ! -z "$f" ];then
           value=$(realpath "$f")
           file_name=$(basename "$value")
@@ -150,7 +171,7 @@ main(){
           fi
           count=$((count+1))
         fi 
-      done
+      done < <(printf '%s\n' "$files")
     done
 
    echo 
