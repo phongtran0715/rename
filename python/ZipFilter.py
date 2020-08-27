@@ -137,14 +137,14 @@ if __name__ == '__main__':
         for i in range(len(datas)):
             file_path = datas[i][0] + os.sep + datas[i][1]
             logging.info('')
-            logging.info('Processing file ({}) : {}'.format(sizeof_fmt(os.path.getsize(file_path)), file_path))
+            logging.info('File({}): {}'.format(sizeof_fmt(os.path.getsize(file_path)), file_path))
             if i == 0:
                 df2 = pd.DataFrame({'Name': [datas[i][1]], 'Size': [sizeof_fmt(os.path.getsize(file_path))],
                                     'Path': [datas[i][0]], 'IsBiggest': 'Y', 'Move to': [datas[i][0]]})
             else:
                 df2 = pd.DataFrame({'Name': [datas[i][1]], 'Size': [sizeof_fmt(os.path.getsize(file_path))],
                                     'Path': [datas[i][0]], 'IsBiggest': 'N', 'Move to': [delete_path]})
-                logging.info('Moving file {} to {}'.format(file_path, delete_path))
+                logging.info('Moving to {}'.format(delete_path))
                 total_delete += 1
                 total_delete_size += os.path.getsize(file_path)
                 if app_mode == "EXECUTE":

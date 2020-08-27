@@ -1,68 +1,98 @@
 #!/bin/bash
 ###################################################################
 #Script Name    : ZipSun
-#Description    : This script loop through all zip file in subfolder
-#                 Rename zip fiel by our rule and move file to target folder
+#Description    : This script loop through all zip file in sub-folder
+#                 Rename zip file by our rule and move file to target folder
 #Version        : 8.0
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
+# Define color for print message
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 GRAY='\033[1;30m'
 NC='\033[0m'
 
+# This is file contain all country code
 COUNTRY_FILE="countries.txt"
-LANGUSGES=("AR" "EN" "FR" "ES")
+
+#List support language
+LANGUAGES=("AR" "EN" "FR" "ES")
+
+# List teams inside zip file name
 TEAMS=("RT", "NG" "EG" "CT" "SH" "ST")
+
+# Neglects keyword will be remove from zip file name
 NEGLECTS_KEYWORD=("V1" "V2" "V3" "V4" "SQ" "-SW-" "-NA-" "FYT" "FTY" "SHORT" "SQUARE" "SAKHR"
   "KHEIRA" "TAREK" "TABISH" "ZACH" "SUMMAQAH" "HAMAMOU" "ITANI" "YOMNA" "COPY" "COPIED")
+
+# List suffix keyword in video file name
 SUFFIX_LISTS=("SUB" "FINAL" "YT" "CLEAN" "TW" "TWITTER" "FB" "FACEBOOK" "YT" "YOUTUBE" "IG" "INSTAGRAM")
+
+# List sub-folder inside zip file that contain video
+# The script will looking for those folder to find video file
 SUB_DIR_LISTS=("CUT" "EXPORT")
 
-#Target folder name. Those folder will be created automaticlly if them don't exist
+# This folder store zip, video file that have size greater than threshold
+# and have language is AR/EN/ES/FR
 AR_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-AR/"
 EN_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-EN/"
 ES_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-ES/"
 FR_OVER_DIR="FR-OVER"
 
+# This folder store zip, video file that have size smaller than threshold
+# and have language is AR/EN/ES/FR
 AR_UNDER_DIR="/mnt/restore/S3UPLOAD/AR-UNDER/"
 EN_UNDER_DIR="/mnt/restore/S3UPLOAD/EN-UNDER/"
 ES_UNDER_DIR="/mnt/restore/S3UPLOAD/ES-UNDER/"
 FR_UNDER_DIR="FR-UNDER"
 
+# This folder store zip file that have language is mismatch with default language
+# default language is parameter from command line (option -l)
 AR_HOLD_DIR="/mnt/restore/R1084-AR/"
 EN_HOLD_DIR="/mnt/restore/R1055-EN/"
 ES_HOLD_DIR="/mnt/restore/R1200-ES/"
 FR_HOLD_DIR="FR-HOLD"
 
-OTHER_DIR="/mnt/restore/__CHECK/"
+#This folder store all zip file that have size small than delete threshold size
 DELETED_DIR="/mnt/restore/__DEL/"
 
+#This folder store application running log text file
 LOG_DIR="/mnt/restore/log/"
+
+#This is temporary folder. Zip file will be unzip to this folder
+# then all un-zipped content will be moved to target folder
 TMP_DIR="/mnt/restore/tmp/"
+
+#This is database csv file
 DATABASE_FULL="/mnt/restore/full_db.csv"
 DATABASE_AR="/mnt/restore/ar_db.csv"
 DATABASE_EN="/mnt/restore/en_db.csv"
 DATABASE_ES="/mnt/restore/es_db.csv"
 
+#Zip file size threshold
+# Every zip file have size greater than threshold will be moved to over language folder
+# Every zip file have size greater than threshold will be moved to under language folder
+THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
+
+# Every zip file have size smaller than delete threshold will boe moved to delete folder
+DELETE_THRESHOLD=$((25 * 1024 * 1024)) #25Mb
+
+
 TARGET_DIR_LIST=( "$AR_OVER_DIR" "$EN_OVER_DIR" "$ES_OVER_DIR" "$FR_OVER_DIR"
   "$AR_UNDER_DIR" "$EN_UNDER_DIR" "$ES_UNDER_DIR" "$FR_UNDER_DIR"
   "$AR_HOLD_DIR" "$EN_HOLD_DIR" "$ES_HOLD_DIR" "$FR_HOLD_DIR")
-
-#Zip file size threshold
-THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
-DELETE_THRESHOLD=$((25 * 1024 * 1024)) #25Mb
-
 declare -A ARR_ZIPS
 declare -A ARR_MOVIES
 
+# Global variable to save processing name status
 gsuffix_path="/tmp/.gsuffix"
 gteam_path="/tmp/.gteam"
 gzip_date_path="/tmp/.gzip_date"
 gzip_name_path="/tmp/.gzip_name"
 
+# Global variable to statistics processed data
 TOTAL_DEL_ZIP_FILE=0
 TOTAL_DEL_ZIP_SIZE=0
 TOTAL_NON_LANG_FILE=0
@@ -332,7 +362,7 @@ order_zip_element(){
   for i in "${!arr[@]}";do
     value=${arr[$i]}
     #get language
-    if [ ${#value} -eq 2 ] && [[ "${LANGUSGES[@]}" =~ "$value" ]]; then
+    if [ ${#value} -eq 2 ] && [[ "${LANGUAGES[@]}" =~ "$value" ]]; then
       lang=$value"-"
       continue
     fi
@@ -413,7 +443,7 @@ order_movie_element(){
   for i in "${!arr[@]}";do
     value=${arr[$i]}
     #get language
-    if [ ${#value} -eq 2 ] && [[ "${LANGUSGES[@]}" =~ "$value" ]]; then
+    if [ ${#value} -eq 2 ] && [[ "${LANGUAGES[@]}" =~ "$value" ]]; then
       lang=$value"-"
       continue
     fi
@@ -590,7 +620,7 @@ standardized_name(){
     name=${name/$match/$new_str}
   fi
 
-  #remove neglect keywork
+  #remove neglect keyword
   name=$(remove_blacklist_keyword "$name")
   if [[ $name = *_ ]]; then name=${name::-1}; fi
   if [[ $name = _* ]]; then name=${name:1}; fi
@@ -740,7 +770,7 @@ check_zip_file(){
   
   # validate zip size
   if [ $zipSize -lt $DELETE_THRESHOLD ]; then
-    printf "${RED}($index)Zip\t: %-50s - Size : %s - Fize size invalid - Moved to : $DELETED_DIR${NC}\n" \
+    printf "${RED}($index)Zip\t: %-50s - Size : %s - File size invalid - Moved to : $DELETED_DIR${NC}\n" \
       "$old_zip_name" "$(convert_size $zipSize)"
     echo "$old_no_ext,under $(convert_size $DELETE_THRESHOLD),$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$DELETED_DIR"  >> $log_path
     TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE + 1))
@@ -924,7 +954,7 @@ process_zip_file(){
     root_dir_name=$(basename $(zipinfo -1 "$file_path" | head -n 1))
     for d in "${sub_folder[@]}";do
       echo -e "Folder ["$(basename $d)"]... "
-      echo "Start unziping  ..."
+      echo "Start un-zipping  ..."
       # List all file in sub folder
       tmpFiles=$(unzip -Zl -1 "$file_path" "$root_dir_name/$d/*" | egrep '.mp4|.MP4|.mov|.MOV|.mxf|.MXF' | sort -nr)
       IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
@@ -1004,6 +1034,7 @@ main(){
     exit 1
   fi
 
+  # validate configuration value
   validate=0
   if [ ! -d "$AR_OVER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [AR_OVER_DIR][$AR_OVER_DIR]${NC}\n"; validate=1; fi
   if [ ! -d "$EN_OVER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [EN_OVER_DIR][$EN_OVER_DIR]${NC}\n"; validate=1; fi
@@ -1021,7 +1052,6 @@ main(){
   if [ ! -d "$FR_HOLD_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [FR_HOLD_DIR][$FR_HOLD_DIR]${NC}\n"; validate=1; fi
 
   if [ ! -d "$DELETED_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [DELETED_DIR][$DELETED_DIR]${NC}\n"; validate=1; fi
-  if [ ! -d "$OTHER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [OTHER_DIR][$OTHER_DIR]${NC}\n"; validate=1; fi
   
   if [[ -d "$INPUT" ]]; then
     echo "Input folder : [$INPUT]"
@@ -1043,7 +1073,6 @@ main(){
       if [ ! -f "$file" ];then continue;fi
       #  validate zip file integrity
       is_valid=$(validate_zip "$file")
-      echo "phongtn : $is_valid"
       if [[ "$is_valid" != "OK" ]];then
         printf "${RED} Invalid zip file : $file${NC}\n"
         INVALID_ZIP=$((INVALID_ZIP + 1))
@@ -1058,7 +1087,7 @@ main(){
       echo
     done < <(printf '%s\n' "$files")
 
-    # process zip file at sub directorys
+    # process zip file at sub directory
     sub_dirs=$(find "$INPUT" -maxdepth 1 -type d | tail -n +2)
     TOTAL_SUB_FOLDER=0
     while IFS= read -r dir; do
@@ -1085,7 +1114,6 @@ main(){
       done < <(printf '%s\n' "$files")
     done < <(printf '%s\n' "$sub_dirs")
   elif [[ -f "$INPUT" ]]; then
-    # file
     #  validate zip file integrity
     is_valid=$(validate_zip "$INPUT")
     if [[ "$is_valid" != "OK" ]];then
@@ -1127,6 +1155,7 @@ main(){
     echo
   fi
 
+  # print statistic log
   echo "Zip file info:"
   printf "%10s %-15s : $TOTAL_SUB_FOLDER \n" "-" "Num sub folder"
   printf "%10s %-15s : $total \n" "-" "Total file"
@@ -1150,6 +1179,7 @@ main(){
 
 if [[ "$_DEBUG" != "msg" ]] && [[ "$_DEBUG" != "dbg" ]];then _DEBUG="msg"; fi
 
+# create log file by input file name
 if [[ -d "$INPUT" ]]; then
   log_path="$LOG_DIR"$(echo $(basename "$INPUT")).csv
   zip_log_path="$LOG_DIR"$(echo $(basename "$INPUT"))_zip_name_only.txt
@@ -1166,6 +1196,7 @@ else
   exit 2
 fi
 
+# run main application
 if [[ $timestamp == "off" ]];then
   main "$log_path" "$zip_log_path"| tee "$full_log_tmp"
 else
