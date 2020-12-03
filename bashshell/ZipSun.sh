@@ -3,10 +3,13 @@
 #Script Name    : ZipSun
 #Description    : This script loop through all zip file in sub-folder
 #                 Rename zip file by our rule and move file to target folder
-#Version        : 8.0
+#Version        : 8.1
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
+
+# Set log level msg/dbg 
+_DEBUG="dbg"
 
 # Define color for print message
 RED='\033[0;31m'
@@ -63,7 +66,7 @@ LOG_DIR="/mnt/restore/log/"
 
 #This is temporary folder. Zip file will be unzip to this folder
 # then all un-zipped content will be moved to target folder
-TMP_DIR="/mnt/restore/tmp/"
+ROOT_TMP_DIR="/mnt/restore/tmp/"
 
 #This is database csv file
 DATABASE_FULL="/mnt/restore/full_db.csv"
@@ -74,7 +77,8 @@ DATABASE_ES="/mnt/restore/es_db.csv"
 #Zip file size threshold
 # Every zip file have size greater than threshold will be moved to over language folder
 # Every zip file have size greater than threshold will be moved to under language folder
-THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
+# THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
+THRESHOLD=$((50 * 1024 * 1024)) #50M
 
 # Every zip file have size smaller than delete threshold will boe moved to delete folder
 DELETE_THRESHOLD=$((25 * 1024 * 1024)) #25Mb
@@ -104,7 +108,7 @@ INVALID_ZIP=0
 
 function DEBUG()
 {
-  [ "$_DEBUG" == "msg" ] && $@ || :
+  [ "$_DEBUG" == "dbg" ] && $@ || :
 }
 
 helpFunction()
@@ -947,8 +951,9 @@ process_zip_file(){
 
   # Loop all sub dir, unzip video  
   if [ ${#sub_folder[@]} -gt 0 ];then
-    # unzip
-    rm -rf "$TMP_DIR"
+    # create unique temporary folder to hold unzip data
+    mkdir -p "$ROOT_TMP_DIR"
+    TMP_DIR="$ROOT_TMP_DIR/"$(uuidgen)
     mkdir -p "$TMP_DIR"
     # Get root zip directory name
     root_dir_name=$(basename $(zipinfo -1 "$file_path" | head -n 1))
@@ -1017,7 +1022,7 @@ process_zip_file(){
       done <<< "$files"
     done
   fi
-  rm -rf "$TMP_DIR/"
+  # rm -rf "$TMP_DIR/"
 }
 
 main(){
@@ -1055,6 +1060,18 @@ main(){
   
   if [[ -d "$INPUT" ]]; then
     echo "Input folder : [$INPUT]"
+    
+    # Create global file
+    mkdir -p "$INPUT/.tmp"
+    gsuffix_path="$INPUT/.tmp/gsuffix"
+    gteam_path="$INPUT/.tmp/gteam"
+    gzip_date_path="$INPUT/.tmp/gzip_date"
+    gzip_name_path="$INPUT/.tmp/gzip_name"
+    touch "$gsuffix_path"
+    touch "$gteam_path"
+    touch "$gzip_date_path"
+    touch "$gzip_name_path"
+
     if [[ $mode == "TEST" ]];then
       echo "Run as check mode (-c)"
     else
@@ -1068,15 +1085,21 @@ main(){
     # process zip file at root directory
     echo "*** Process zip at root folder : $INPUT"
     files=$(ls -S "$INPUT"| egrep '\.zip$|\.Zip$|\.ZIP$')
+    [[ $_DEBUG == "dbg" ]] && echo -e "Finding zip file at : $INPUT"
+    [[ $_DEBUG == "dbg" ]] && echo -e "Found : " $(echo "files" | wc -l) " zip files"
+
     while IFS= read -r file; do
       file="$INPUT/$file"
       if [ ! -f "$file" ];then continue;fi
+      [[ $_DEBUG == "dbg" ]] && echo -e "Validating zip file : $file"
       #  validate zip file integrity
       is_valid=$(validate_zip "$file")
       if [[ "$is_valid" != "OK" ]];then
         printf "${RED} Invalid zip file : $file${NC}\n"
         INVALID_ZIP=$((INVALID_ZIP + 1))
         continue
+      else
+        [[ $_DEBUG == "dbg" ]] && echo -e "Zip file is valid."
       fi
       total=$((total+1))
       if [[ $mode == "TEST" ]];then
@@ -1092,16 +1115,21 @@ main(){
     TOTAL_SUB_FOLDER=0
     while IFS= read -r dir; do
       echo "*** Process zip at sub folder : $dir"
+      [[ $_DEBUG == "dbg" ]] && echo -e "Finding zip file at : $dir"
       files=$(ls -S "$dir"| egrep '\.zip$|\.Zip$|\.ZIP$')
+      [[ $_DEBUG == "dbg" ]] && echo -e "Found : " $(echo "files" | wc -l) " zip files"
       while IFS= read -r file; do
         file="$dir/$file"
         if [ ! -f "$file" ];then continue;fi
         #  validate zip file integrity
+        [[ $_DEBUG == "dbg" ]] && echo -e "Validating zip file : $file"
         is_valid=$(validate_zip "$file")
         if [[ "$is_valid" != "OK" ]];then
           printf "${RED} Invalid zip file : $file${NC}\n"
           INVALID_ZIP=$((INVALID_ZIP + 1))
           continue
+        else
+          [[ $_DEBUG == "dbg" ]] && echo -e "Zip file is valid."
         fi
         total=$((total+1))
         if [[ $mode == "TEST" ]];then
@@ -1154,6 +1182,8 @@ main(){
     printf "%10s %-15s : $full_log \n" "-" "Full log "
     echo
   fi
+
+  rm -rf "$INPUT/.tmp"
 
   # print statistic log
   echo "Zip file info:"
