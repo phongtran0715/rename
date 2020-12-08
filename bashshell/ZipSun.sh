@@ -77,11 +77,12 @@ DATABASE_ES="/mnt/restore/es_db.csv"
 #Zip file size threshold
 # Every zip file have size greater than threshold will be moved to over language folder
 # Every zip file have size greater than threshold will be moved to under language folder
-# THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
-THRESHOLD=$((50 * 1024 * 1024)) #50M
+THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
 
 # Every zip file have size smaller than delete threshold will boe moved to delete folder
 DELETE_THRESHOLD=$((25 * 1024 * 1024)) #25Mb
+
+NUM_VIDEO_THRESHOLD=5
 
 
 TARGET_DIR_LIST=( "$AR_OVER_DIR" "$EN_OVER_DIR" "$ES_OVER_DIR" "$FR_OVER_DIR"
@@ -821,6 +822,13 @@ check_zip_file(){
       IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
       IFS=$'\n' read -rd '' -a arrSizes <<<"$tmpSizes"
 
+      # count number of video
+      num_videos=${!arrFiles[@]}
+      if [ $num_videos -ge $NUM_VIDEO_THRESHOLD ];then
+        printf "${GRAY} Found %s video. Number video exceed threshold. Ignore this folder.${NC}\n"
+        continue
+      fi
+
       for i in "${!arrFiles[@]}";do
         # Only get file in root folder
         [[ $_DEBUG == "dbg" ]] && echo -e "Processing file : ${arrFiles[$i]}"
@@ -959,10 +967,18 @@ process_zip_file(){
     root_dir_name=$(basename $(zipinfo -1 "$file_path" | head -n 1))
     for d in "${sub_folder[@]}";do
       echo -e "Folder ["$(basename $d)"]... "
-      echo "Start un-zipping  ..."
       # List all file in sub folder
       tmpFiles=$(unzip -Zl -1 "$file_path" "$root_dir_name/$d/*" | egrep '.mp4|.MP4|.mov|.MOV|.mxf|.MXF' | sort -nr)
       IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
+
+      # count number of video
+      num_videos=${!arrFiles[@]}
+      if [ $num_videos -ge $NUM_VIDEO_THRESHOLD ];then
+        printf "${GRAY} Found %s video. Number video exceed threshold. Ignore this folder.${NC}\n"
+        continue
+      fi
+
+      echo "Start un-zipping  ..."
       for i in "${!arrFiles[@]}";do 
         # Only get file in root folder
         num_path=$(echo "${arrFiles[$i]}" | grep -o '/' - | wc -l)
