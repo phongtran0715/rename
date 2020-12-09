@@ -3,7 +3,7 @@
 #Script Name    : ZipSun
 #Description    : This script loop through all zip file in sub-folder
 #                 Rename zip file by our rule and move file to target folder
-#Version        : 8.1
+#Version        : 8.3
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -60,6 +60,7 @@ FR_HOLD_DIR="FR-HOLD"
 
 #This folder store all zip file that have size small than delete threshold size
 DELETED_DIR="/mnt/restore/__DEL/"
+OTHER_DIR="/mnt/restore/__DEL/"
 
 #This folder store application running log text file
 LOG_DIR="/mnt/restore/log/"
@@ -77,7 +78,7 @@ DATABASE_ES="/mnt/restore/es_db.csv"
 #Zip file size threshold
 # Every zip file have size greater than threshold will be moved to over language folder
 # Every zip file have size greater than threshold will be moved to under language folder
-THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
+MAX_SIZE_THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
 
 # Every zip file have size smaller than delete threshold will boe moved to delete folder
 DELETE_THRESHOLD=$((25 * 1024 * 1024)) #25Mb
@@ -270,7 +271,7 @@ convert_size(){
 get_target_folder(){
   lang=$1
   size=$2
-  if [ $size -gt $THRESHOLD ];then
+  if [ $size -gt $MAX_SIZE_THRESHOLD ];then
     if [[ $lang == "AR" ]];then result="$AR_OVER_DIR";
     elif [[ $lang == "EN" ]];then result="$EN_OVER_DIR";
     elif [[ $lang == "ES" ]];then result="$ES_OVER_DIR";
@@ -682,7 +683,7 @@ dummy_test(){
     if [ -z "$old_zip_name" ]; then continue; fi
     new_zip_name=$(standardized_name "$old_zip_name" "ZIP")
     if ! validate_zip_name $new_zip_name;then
-      printf "${GRAY}($index)Zip\t: %-50s - %s - Invalid new zip name - Moved to : $OTHER_DIR${NC}\n" \
+      printf "${GRAY}($index)Zip\t: %-50s -> %s - Invalid new zip name - Moved to : $OTHER_DIR${NC}\n" \
       "$old_zip_name" "$new_zip_name"
       continue
     fi
@@ -756,6 +757,7 @@ check_zip_file(){
   old_no_ext=$(echo $old_zip_name | cut -f 1 -d '.')
   new_no_ext=$(echo $new_zip_name | cut -f 1 -d '.')
   if [[ -f "$file_path" ]];then zipSize=$(stat -c%s "$file_path"); fi
+  
   # validate language if default lang not empty
   if [ ! -z $default_lang ];then
     hold_dir=$(get_hold_dir "$new_video_name")
@@ -768,8 +770,9 @@ check_zip_file(){
   fi
   # validate new zip name
   if ! validate_zip_name $new_zip_name;then
-    printf "${GRAY}($index)Zip\t: %-50s - %s - Invalid new zip name - Moved to : $OTHER_DIR${NC}\n" \
+    printf "${GRAY}($index)Zip\t: %-50s -> %s - Invalid new zip name - Moved to : $OTHER_DIR${NC}\n" \
     "$old_zip_name" "$new_zip_name"
+    echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$OTHER_DIR"  >> $log_path
     return
   fi
   
@@ -781,6 +784,24 @@ check_zip_file(){
     TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE + 1))
     TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
     return;
+  fi
+
+  if [ $zipSize -lt $MAX_SIZE_THRESHOLD ]; then
+    target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
+    printf "${GRAY}($index)Zip\t: %-50s - Size: %s - Exceed max file size threshold ${NC}\n" "$old_zip_name" "$(convert_size $zipSize)"
+    echo -e "Moved to : $target_folder"
+    echo "$old_no_ext,over $(convert_size $MAX_SIZE_THRESHOLD),$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder"  >> $log_path
+  fi
+
+  #  validate zip file integrity
+  echo -e "Validating zip file : $file"
+  is_valid=$(validate_zip "$file")
+  if [[ "$is_valid" != "OK" ]];then
+    printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
+    INVALID_ZIP=$((INVALID_ZIP + 1))
+    continue
+  else
+    echo -e "Zip file is valid."
   fi
 
   # check new zip file existed or not
@@ -902,8 +923,9 @@ process_zip_file(){
   if ! validate_zip_name $new_zip_name;then
     printf "${GRAY}($index)Zip\t: %-50s - %s - Invalid new zip name - Moving to : $OTHER_DIR${NC}\n" \
     "$old_zip_name" "$new_zip_name"
+    echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$OTHER_DIR"  >> $log_path
     mv -f "$zip_dir_name/$old_zip_name" "$OTHER_DIR/"
-    continue
+    return
   fi
 
   # validate zip size
@@ -915,6 +937,26 @@ process_zip_file(){
     TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE +1))
     TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
     return;
+  fi
+
+  if [ $zipSize -lt $MAX_SIZE_THRESHOLD ]; then
+    target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
+    printf "${GRAY}($index)Zip\t: %-50s - Size: %s - Exceed max file size threshold ${NC}\n" "$old_zip_name" "$(convert_size $zipSize)"
+    echo -e "Moved to : $target_folder"
+    echo "$old_no_ext,over $(convert_size $MAX_SIZE_THRESHOLD),$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder"  >> $log_path
+    mv -f "$file_path" "$target_folder";
+    return
+  fi
+
+  #  validate zip file integrity
+  echo -e "Validating zip file : $file"
+  is_valid=$(validate_zip "$file")
+  if [[ "$is_valid" != "OK" ]];then
+    printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
+    INVALID_ZIP=$((INVALID_ZIP + 1))
+    continue
+  else
+    echo -e "Zip file is valid."
   fi
 
   # check new zip file existed or not
@@ -1102,21 +1144,9 @@ main(){
     echo "*** Process zip at root folder : $INPUT"
     files=$(ls -S "$INPUT"| egrep '\.zip$|\.Zip$|\.ZIP$')
     [[ $_DEBUG == "dbg" ]] && echo -e "Finding zip file at : $INPUT"
-    [[ $_DEBUG == "dbg" ]] && echo -e "Found : " $(echo "files" | wc -l) " zip files"
-
     while IFS= read -r file; do
       file="$INPUT/$file"
       if [ ! -f "$file" ];then continue;fi
-      [[ $_DEBUG == "dbg" ]] && echo -e "Validating zip file : $file"
-      #  validate zip file integrity
-      is_valid=$(validate_zip "$file")
-      if [[ "$is_valid" != "OK" ]];then
-        printf "${RED} Invalid zip file : $file${NC}\n"
-        INVALID_ZIP=$((INVALID_ZIP + 1))
-        continue
-      else
-        [[ $_DEBUG == "dbg" ]] && echo -e "Zip file is valid."
-      fi
       total=$((total+1))
       if [[ $mode == "TEST" ]];then
         check_zip_file "$file" "$log_path" "$zip_log_path" $total
@@ -1131,22 +1161,10 @@ main(){
     TOTAL_SUB_FOLDER=0
     while IFS= read -r dir; do
       echo "*** Process zip at sub folder : $dir"
-      [[ $_DEBUG == "dbg" ]] && echo -e "Finding zip file at : $dir"
       files=$(ls -S "$dir"| egrep '\.zip$|\.Zip$|\.ZIP$')
-      [[ $_DEBUG == "dbg" ]] && echo -e "Found : " $(echo "files" | wc -l) " zip files"
       while IFS= read -r file; do
         file="$dir/$file"
         if [ ! -f "$file" ];then continue;fi
-        #  validate zip file integrity
-        [[ $_DEBUG == "dbg" ]] && echo -e "Validating zip file : $file"
-        is_valid=$(validate_zip "$file")
-        if [[ "$is_valid" != "OK" ]];then
-          printf "${RED} Invalid zip file : $file${NC}\n"
-          INVALID_ZIP=$((INVALID_ZIP + 1))
-          continue
-        else
-          [[ $_DEBUG == "dbg" ]] && echo -e "Zip file is valid."
-        fi
         total=$((total+1))
         if [[ $mode == "TEST" ]];then
           check_zip_file "$file" "$log_path" "$zip_log_path" $total
@@ -1158,13 +1176,6 @@ main(){
       done < <(printf '%s\n' "$files")
     done < <(printf '%s\n' "$sub_dirs")
   elif [[ -f "$INPUT" ]]; then
-    #  validate zip file integrity
-    is_valid=$(validate_zip "$INPUT")
-    if [[ "$is_valid" != "OK" ]];then
-      printf "${RED} Invalid zip file : $file${NC}\n"
-      INVALID_ZIP=$((INVALID_ZIP + 1))
-      continue
-    fi
     if [[ $mode == "TEST" ]];then
       echo "Run as check mode (-c)"
       echo "OLD ZIP NAME,NEW ZIP NAME,ZIP SIZE, NEW VIDEO NAME, SOURCE PATH" > $log_path
