@@ -3,7 +3,7 @@
 #Script Name    : MatchingVideo
 #Description    : Find all video file that matched with zip file name in DB
 #				Rename and move file to destination folder 
-#Version        : 1.1
+#Version        : 1.2
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -55,22 +55,25 @@ helpFunction()
   echo -e "option:"
   echo -e "\t-c Check corrupt zip file"
   echo -e "\t-x Repair corrupt zip file"
+  echo -e "\t-d Manual test with input text file"
   exit 1
 }
 
-while getopts "c:x:" opt
+while getopts "d:c:x:" opt
 do
 	case "$opt" in
-	  c ) 
-		  INPUT+=("$OPTARG")
-		  while [ "$OPTIND" -le "$#" ] && [ "${!OPTIND:0:1}" != "-" ]; do 
-			INPUT+=("${!OPTIND}")
+		d ) INPUT="$OPTARG"
+        	mode="DUMMY";;
+		c ) 
+			INPUT+=("$OPTARG")
+			while [ "$OPTIND" -le "$#" ] && [ "${!OPTIND:0:1}" != "-" ]; do 
+				INPUT+=("${!OPTIND}")
 			OPTIND="$(expr $OPTIND \+ 1)"
-		  done
-		  mode="TEST";;
-	  x ) INPUT+=("$OPTARG")
-		  mode="RUN";;
-	  ? ) helpFunction ;;
+			done
+			mode="TEST";;
+		x ) INPUT+=("$OPTARG")
+			mode="RUN";;
+		? ) helpFunction ;;
    esac
 done
 shift $((OPTIND -1))
@@ -102,7 +105,6 @@ check_matching(){
 	line_index=1
 	while IFS= read -r name; do
 		# remove extension
-		name=$(echo "$name" | cut -d'.' -f1)
 		if [[ "$name" == *"$movie_name"* ]] || [[ "$movie_name" == *"$name"* ]];then
 			echo $MATCH_NEW_NAME	
 			echo "$line_index" > $gline_path
@@ -115,7 +117,6 @@ check_matching(){
 	line_index=1
 	while IFS= read -r name; do
 		# remove extension
-		name=$(echo "$name" | cut -d'.' -f1)
 		if [[ "$name" == *"$movie_name"* ]] || [[ "$movie_name" == *"$name"* ]];then
 			echo $MATCH_OLD_NAME	
 			echo "$line_index" > $gline_path
@@ -177,78 +178,120 @@ main(){
 	touch "$REPORT_FILE"
 	echo "Old Name, New Name, Size, Move to" > "$REPORT_FILE"
 	
-	# Collect all input folder
-	list_dir=""
-	for argument in "${INPUT[@]}"; do
-		list_dir="${argument} $list_dir "
-	done
-
-	echo "List input directory : $list_dir"
 	echo "Database file : $DATABASE_FILE"
 	echo "-------------------------------"
-	echo "Finding video in folder ..."
-	video_files=$(find $list_dir -type f \( -iname \*.mov -o -iname \*.mxf -o -iname \*.mp4 \))
-	while IFS= read -r file; do
-		echo "" > $gline_path
-		if [ ! -f "$file" ];then continue;fi
-		total=$(($total + 1))
-		size=$(get_file_size "$file")
+	if [[ -f "$INPUT" ]]; then
+		# Input is text file
+		echo "Input text file : $INPUT"
+		while read file; do
+			total=$(($total + 1))
+			size=0
+			echo "($total)Checking file: $file"
+			match_result=$(check_matching "$file")
+			if [[ $match_result == $MATCH_OLD_NAME ]];then
+				echo "Matched old name in DB."
+				matched_count=$((matched_count + 1))
+				matched_size=$((matched_size + $size))
+				# rename file, get new name from DB
+				new_name=$(get_new_name "$file")
+				echo "Rename [$(basename "$file")] -> [$new_name]"
+				target_folder=$(get_target_folder_by_ext "$file")
+				echo "Move file to [$target_folder]"
+				echo "$(basename "$file"), $new_name, $(convert_size $size), $target_folder" >> "$REPORT_FILE"
+			elif [[ $match_result == $MATCH_NEW_NAME ]];then
+				echo "Matched new name in DB."
+				matched_count=$((matched_count + 1))
+				matched_size=$((matched_size + $size))
+
+				# rename file, get new name from DB
+				new_name=$(get_new_name "$file")
+				echo "Rename [$(basename "$file")] -> [$new_name]"
+
+				# move file to target folder
+				target_folder=$(get_target_folder_by_ext "$file")
+				echo "Move file to [$target_folder]"
+				echo "$(basename "$file"), $new_name, $(convert_size $size), $target_folder" >> "$REPORT_FILE"
+			else
+				# move file to target folder
+				echo "Not matched name"
+				echo "Move file to [$OTHER_PATH]"
+				echo "$(basename "$file"), "Not match", $(convert_size $size), $OTHER_PATH" >> "$REPORT_FILE"
+			fi
+			echo 
+		done <"$INPUT"
+	else
+		# Input is directorys
+		# Collect all input folder
+		list_dir=""
+		for argument in "${INPUT[@]}"; do
+			list_dir="${argument} $list_dir "
+		done
+		echo "List input directory : $list_dir"
 		echo "-------------------------------"
-		echo "($total)Checking file ($(convert_size $size)): $file"
-		match_result=$(check_matching "$file")
-		if [[ $match_result == $MATCH_OLD_NAME ]];then
-			echo "Matched old name in DB."
-			matched_count=$((matched_count + 1))
-			matched_size=$((matched_size + $size))
-			# rename file, get new name from DB
-			new_name=$(get_new_name "$file")
-			echo "Rename [$(basename "$file")] -> [$new_name]"
-			if [[ $mode == "RUN" ]];then
-				if [[ "$(basename "$file")" != "$new_name" ]];then
-					mv "$file" "$(dirname "$file")/$new_name"
+		echo "Finding video in folder ..."
+		video_files=$(find $list_dir -type f \( -iname \*.mov -o -iname \*.mxf -o -iname \*.mp4 \))
+		while IFS= read -r file; do
+			echo "" > $gline_path
+			if [ ! -f "$file" ];then continue;fi
+			total=$(($total + 1))
+			size=$(get_file_size "$file")
+			echo "($total)Checking file ($(convert_size $size)): $file"
+			match_result=$(check_matching "$file")
+			if [[ $match_result == $MATCH_OLD_NAME ]];then
+				echo "Matched old name in DB."
+				matched_count=$((matched_count + 1))
+				matched_size=$((matched_size + $size))
+				# rename file, get new name from DB
+				new_name=$(get_new_name "$file")
+				echo "Rename [$(basename "$file")] -> [$new_name]"
+				if [[ $mode == "RUN" ]];then
+					if [[ "$(basename "$file")" != "$new_name" ]];then
+						mv "$file" "$(dirname "$file")/$new_name"
+					fi
+					file="$(dirname "$file")/$new_name"
 				fi
-				file="$(dirname "$file")/$new_name"
-			fi
-			target_folder=$(get_target_folder_by_ext "$file")
-			echo "Move file to [$target_folder]"
-			if [[ $mode == "RUN" ]];then
-				mv -f "$file" "$target_folder/"
-			fi
-			echo "$(basename "$file"), $new_name, $(convert_size $size), $target_folder" >> "$REPORT_FILE"
-		elif [[ $match_result == $MATCH_NEW_NAME ]];then
-			echo "Matched new name in DB."
-			matched_count=$((matched_count + 1))
-			matched_size=$((matched_size + $size))
-
-			# rename file, get new name from DB
-			new_name=$(get_new_name "$file")
-			echo "Rename [$(basename "$file")] -> [$new_name]"
-			if [[ $mode == "RUN" ]];then
-				if [[ "$(basename "$file")" != "$new_name" ]];then
-					mv "$file" "$(dirname "$file")/$new_name"
+				target_folder=$(get_target_folder_by_ext "$file")
+				echo "Move file to [$target_folder]"
+				if [[ $mode == "RUN" ]];then
+					mv -f "$file" "$target_folder/"
 				fi
-				file="$(dirname "$file")/$new_name"
-			fi
+				echo "$(basename "$file"), $new_name, $(convert_size $size), $target_folder" >> "$REPORT_FILE"
+			elif [[ $match_result == $MATCH_NEW_NAME ]];then
+				echo "Matched new name in DB."
+				matched_count=$((matched_count + 1))
+				matched_size=$((matched_size + $size))
 
-			# move file to target folder
-			target_folder=$(get_target_folder_by_ext "$file")
-			echo "Move file to [$target_folder]"
-			if [[ $mode == "RUN" ]];then
-				mv -f "$file" "$target_folder/"
+				# rename file, get new name from DB
+				new_name=$(get_new_name "$file")
+				echo "Rename [$(basename "$file")] -> [$new_name]"
+				if [[ $mode == "RUN" ]];then
+					if [[ "$(basename "$file")" != "$new_name" ]];then
+						mv "$file" "$(dirname "$file")/$new_name"
+					fi
+					file="$(dirname "$file")/$new_name"
+				fi
+
+				# move file to target folder
+				target_folder=$(get_target_folder_by_ext "$file")
+				echo "Move file to [$target_folder]"
+				if [[ $mode == "RUN" ]];then
+					mv -f "$file" "$target_folder/"
+				fi
+				echo "$(basename "$file"), $(basename "$file"), $(convert_size $size), $target_folder" >> "$REPORT_FILE"
+			else
+				# move file to target folder
+				echo "Not matched name"
+				echo "Move file to [$OTHER_PATH]"
+				if [[ $mode == "RUN" ]];then
+					mv "$file" "$OTHER_PATH"
+				fi
+				echo "$(basename "$file"), , $(convert_size $size), $OTHER_PATH" >> "$REPORT_FILE"
 			fi
-			echo "$(basename "$file"), $(basename "$file"), $(convert_size $size), $target_folder" >> "$REPORT_FILE"
-		else
-			# move file to target folder
-			echo "Not matched name"
-			echo "Move file to [$OTHER_PATH]"
-			if [[ $mode == "RUN" ]];then
-				mv "$file" "$OTHER_PATH"
-			fi
-			echo "$(basename "$file"), , $(convert_size $size), $OTHER_PATH" >> "$REPORT_FILE"
-		fi
-		echo
-		# sleep 0.1
-	done < <(printf '%s\n' "$video_files")
+			echo
+			# sleep 0.1
+		done < <(printf '%s\n' "$video_files")
+	fi
+	
 	rm -rf $gline_path
 	echo
 	echo "===================="
@@ -262,7 +305,7 @@ main(){
 }
 log_file="$LOG_PATH/matching_video_log.txt"
 
-OLD_NAME_DB=$(awk -F "," '{print $1}' "$DATABASE_FILE")
-NEW_NAME_DB=$(awk -F "," '{print $2}' "$DATABASE_FILE")
+OLD_NAME_DB=$(awk -F "," '{print $1}' "$DATABASE_FILE" | cut -d"." -f1)
+NEW_NAME_DB=$(awk -F "," '{print $2}' "$DATABASE_FILE" | cut -d"." -f1)
 # cpulimit -l 1 bash $SCRIPT_NAME
 main | while IFS= read -r line; do printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee "$log_file"
