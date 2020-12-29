@@ -4,7 +4,7 @@
 #Description    : Finad all video in source folder, rename file (same ZipSun rule)
 #               moce file to target folder 
 #               Rename and move file to destination folder 
-#Version        : 1.4
+#Version        : 1.5
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -42,6 +42,8 @@ LOG_PATH="/home/jack/Documents/SourceCode/rename_script/log/"
 
 DELETED_PATH="/home/jack/Documents/SourceCode/rename_script/log/del"
 
+CHECK_PATH="/home/jack/Documents/SourceCode/rename_script/log/check"
+
 # Folder store mp4 video
 # MP4_PATH="/mnt/log/mp4/"
 MP4_PATH="/home/jack/Documents/SourceCode/rename_script/log/mp4/"
@@ -50,12 +52,23 @@ MP4_PATH="/home/jack/Documents/SourceCode/rename_script/log/mp4/"
 # MOV_MXF_PATH="/mnt/log/mxf/"
 MOV_MXF_PATH="/home/jack/Documents/SourceCode/rename_script/log/mxf/"
 
+VJ_PATH="/home/jack/Documents/SourceCode/rename_script/log/vj/"
+
+PROCESS_KEYWORD=("FINAL" "SUB" "CLEAN" "FB" "YT" "TW")
+DELETE_KEYWORD=("RECORD" "-VO" "-CAM" "-TAKE" "TEST")
+
 # Folder store file that doesn't match any name
 # OTHER_PATH="/mnt/log/other/"
 OTHER_PATH="/home/jack/Documents/SourceCode/rename_script/log/other/"
 
 #  Report file
 REPORT_FILE="$LOG_PATH/matched_video_report.csv"
+NEW_VIDEO_NAME_FILE="$LOG_PATH/new_video_name.txt"
+TOTAL_FILE_COUNT=0
+TOTAL_SIZE_COUNT=0
+DELETE_FILE_COUNT=0
+VJ_FILE_COUNT=0
+CHECK_FILE_COUNT=0
 
 gline_path="/tmp/.line_"$(date +%s)
 gteam_path="/tmp/.team_"$(date +%s)
@@ -406,78 +419,147 @@ find_video_suffix(){
 dummy_test(){
     local file_path="$1"
     local report_path="$2"
-    count=1
+    local new_video_name_path="$3"
     while IFS= read -r line
     do
         old_name=$(echo ${line^^})
         if [ -z "$old_name" ]; then continue; fi
-        echo "($count)File: $line"
+        echo "($TOTAL_FILE_COUNT)File: $line"
+        TOTAL_FILE_COUNT=$(($TOTAL_FILE_COUNT + 1))
 
-        # precheck file name
-        match=$(echo $old_name | grep -o 'TEST')
+        # Check delete condition
+        match=$(echo $old_name | grep -o "$DELETE_GREP_LIST")
         if [ ! -z "$match" ];then
             match=$(echo $old_name | grep -o 'PROTEST')
             if [ -z "$match" ];then
-                echo "Invalid file name. Ignored!"
+                echo "Found deleted keyword"
                 echo "Move to : $DELETED_PATH"
                 echo "$line, - ,0, $DELETED_PATH" >> "$report_path"
                 echo "---------------------"
                 echo
+                DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT + 1))
                 continue
             fi
         fi
 
-        new_name=$(standardized_name "$old_name")
-        echo "New name : $new_name"
-        target_folder=$(get_target_folder_by_ext "$line")
-        echo "Move to : $target_folder"
-        echo "$line, $new_name,0, $target_folder" >> "$report_path"
+        # check VJ keyword
+        match=$(echo $old_name | grep -o "VJ")
+        if [ ! -z "$match" ];then
+            echo "Found VJ keyword"
+            echo "Move to : $VJ_PATH"
+            echo "$line, - ,0, $VJ_PATH" >> "$report_path"
+            echo "---------------------"
+            echo
+            VJ_FILE_COUNT=$(($VJ_FILE_COUNT + 1))
+            continue
+        fi
+
+        # Check file name contain valid keyword
+        match=$(echo $old_name | grep -o "$PROCESS_GREP_LIST")
+        if [ ! -z "$match" ];then
+            new_name=$(standardized_name "$old_name")
+            echo "New name : $new_name"
+            target_folder=$(get_target_folder_by_ext "$line")
+            echo "Move to : $target_folder"
+            echo "$line, $new_name,0, $target_folder" >> "$report_path"
+            echo "$new_name" >> "$new_video_name_path"
+        else
+            echo "Unknow file name"
+            echo "Move to : $CHECK_PATH"
+            echo "$line, - ,0, $CHECK_PATH" >> "$report_path"
+            CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT +1))
+        fi
+        
         echo "---------------------"
         echo
-        count=$(($count + 1))
     done < "$file_path"
 }
 
 process_match_video(){
     local file_path="$1"
     local report_path="$2"
+    local new_video_name_path="$3"
     size=$(get_file_size "$file_path")
     old_name=$(basename "$file_path")
-    match=$(echo $old_name | grep -o 'TEST')
+
+    # Check delete condition
+    match=$(echo $old_name | grep -o "$DELETE_GREP_LIST")
     if [ ! -z "$match" ];then
         match=$(echo $old_name | grep -o 'PROTEST')
         if [ -z "$match" ];then
-            echo "Invalid file name. Ignored!"
+            echo "Found deleted keyword"
             echo "Move to : $DELETED_PATH"
             if [[ $mode == "RUN" ]];then
                 mv -f "$file_path" "$DELETED_PATH"
             fi
-            echo "$(basename "$file_path"), - ,0, $DELETED_PATH" >> "$report_path"
-            return
-        fi
-    fi
-    
-    new_name=$(standardized_name "$old_name")
-    echo "New name : $new_name"
-    if [[ $mode == "RUN" ]];then
-        if [[ "$(basename "$file_path")" != "$new_name" ]];then
-            mv -f "$file_path" "$(dirname "$file_path")/$new_name"
+            echo "$(basename "$file_path"), - ,$(convert_size "$size"), $DELETED_PATH" >> "$report_path"
+            echo "---------------------"
+            echo
+            DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT +1))
+            continue
         fi
     fi
 
-    file_path="$(dirname "$file_path")/$new_name"
-    target_folder=$(get_target_folder_by_ext "$file_path")
-    echo "Move to : $target_folder"
-    if [[ $mode == "RUN" ]];then
-        mv -f "$file_path" "$target_folder"
+    # check VJ keyword
+    match=$(echo $old_name | grep -o "VJ")
+    if [ ! -z "$match" ];then
+        echo "Found VJ keyword"
+        echo "Move to : $VJ_PATH"
+        if [[ $mode == "RUN" ]];then
+            mv -f "$file_path" "$VJ_PATH"
+        fi
+        echo "$(basename "$file_path"), - ,$(convert_size "$size"), $VJ_PATH" >> "$report_path"
+        echo "---------------------"
+        echo
+        VJ_FILE_COUNT=$(($VJ_FILE_COUNT +1))
+        continue
     fi
-    echo "$old_name, $new_name,0, $target_folder" >> "$report_path"
 
+    # Check file name contain valid keyword
+    match=$(echo $old_name | grep -o "$PROCESS_GREP_LIST")
+    if [ ! -z "$match" ];then
+        new_name=$(standardized_name "$old_name")
+        echo "New name : $new_name"
+        if [[ $mode == "RUN" ]];then
+            if [[ "$(basename "$file_path")" != "$new_name" ]];then
+                mv -f "$file_path" "$(dirname "$file_path")/$new_name"
+            fi
+        fi
+
+        file_path="$(dirname "$file_path")/$new_name"
+        target_folder=$(get_target_folder_by_ext "$file_path")
+        echo "Move to : $target_folder"
+        if [[ $mode == "RUN" ]];then
+            mv -f "$file_path" "$target_folder"
+        fi
+        echo "$(basename "$file_path"), $new_name,$(convert_size "$size"), $target_folder" >> "$report_path"
+        echo "$new_name" >> "$new_video_name_path"
+    else
+        echo "Unknow file name"
+        echo "Move to : $CHECK_PATH"
+        if [[ $mode == "RUN" ]];then
+            mv -f "$file_path" "$CHECK_PATH"
+        fi
+        echo "$(basename "$file_path"), - ,$(convert_size "$size"), $CHECK_PATH" >> "$report_path"
+        CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT +1))
+    fi
 }
 
 main(){
-    total=0
-    total_size=0
+
+    # create list delete keyword
+    DELETE_GREP_LIST=""
+    for i in "${!DELETE_KEYWORD[@]}";do
+        DELETE_GREP_LIST="${DELETE_GREP_LIST}""\|""${DELETE_KEYWORD[$i]}"
+    done
+    echo "DELETE GREP LIST: $DELETE_GREP_LIST"
+
+    # create list valid keyword
+    PROCESS_GREP_LIST=""
+    for i in "${!PROCESS_KEYWORD[@]}";do
+        PROCESS_GREP_LIST="${PROCESS_GREP_LIST}""\|""${PROCESS_KEYWORD[$i]}"
+    done
+    echo "PROCESS_GREP_LIST: $PROCESS_GREP_LIST"
     
     if [ ! -f "$COUNTRY_FILE" ]; then
         echo "Not found country file : " $COUNTRY_FILE
@@ -491,12 +573,11 @@ main(){
     if [ ! -d "$OTHER_PATH" ]; then printf "${YELLOW}Warning! Directory doesn't existed [OTHER_PATH][$OTHER_PATH]${NC}\n"; validate=1; fi
     if [ ! -d "$LOG_PATH" ]; then printf "${YELLOW}Warning! Directory doesn't existed [LOG_PATH][$LOG_PATH]${NC}\n"; validate=1; fi
     if [ ! -d "$DELETED_PATH" ]; then printf "${YELLOW}Warning! Directory doesn't existed [DELETED_PATH][$DELETED_PATH]${NC}\n"; validate=1; fi
+    if [ ! -d "$VJ_PATH" ]; then printf "${YELLOW}Warning! Directory doesn't existed [VJ_PATH][$VJ_PATH]${NC}\n"; validate=1; fi
+    if [ ! -d "$CHECK_PATH" ]; then printf "${YELLOW}Warning! Directory doesn't existed [CHECK_PATH][$CHECK_PATH]${NC}\n"; validate=1; fi
 
-    if [ -f "$REPORT_FILE" ];then
-        rm -rf "$REPORT_FILE"
-    fi
-    touch "$REPORT_FILE"
     echo "Old Name, New Name, Size, Move to" > "$REPORT_FILE"
+    echo "" > "$NEW_VIDEO_NAME_FILE"
     
     echo "Database file : $DATABASE_FILE"
     if [[ $mode == "RUN" ]];then
@@ -510,7 +591,7 @@ main(){
     if [[ -f "$INPUT" ]]; then
         # Input is text file
         echo "Input text file : $INPUT"
-        dummy_test "$INPUT" "$REPORT_FILE"
+        dummy_test "$INPUT" "$REPORT_FILE" "$NEW_VIDEO_NAME_FILE"
     else
         # Input is directorys
         # Collect all input folder
@@ -524,12 +605,12 @@ main(){
         video_files=$(find $list_dir -type f \( -iname \*.mov -o -iname \*.mxf -o -iname \*.mp4 \))
         while IFS= read -r file; do
             size=$(get_file_size "$file")
-            total_size=$(($total_size + $size))
-            echo "($total)File ($(convert_size $size)): $file"
-            process_match_video "$file" "$REPORT_FILE"
+            echo "($TOTAL_FILE_COUNT)File ($(convert_size $size)): $file"
+            process_match_video "$file" "$REPORT_FILE" "$NEW_VIDEO_NAME_FILE"
             echo "---------------------"
             echo
-            total=$(($total + 1)) 
+            TOTAL_FILE_COUNT=$(($TOTAL_FILE_COUNT + 1))
+            TOTAL_SIZE_COUNT=$(($TOTAL_SIZE_COUNT + $size))
         done < <(printf '%s\n' "$video_files")
     fi
     
@@ -538,13 +619,24 @@ main(){
     rm -rf $gsuffix_path
     echo
     echo "===================="
-    printf "%10s %-15s : $total\n" "-" "Total files"
-    printf "%10s %-15s : $(convert_size $size)\n" "-" "Total size"
+    printf "%10s %-15s : $TOTAL_FILE_COUNT\n" "-" "Total files"
+    printf "%10s %-15s : $(convert_size $TOTAL_SIZE_COUNT)\n" "-" "Total size"
+    printf "%10s %-15s : $DELETE_FILE_COUNT \n" "-" "Delete file count"
+    printf "%10s %-15s : $VJ_FILE_COUNT \n" "-" "VJ file count"
+    printf "%10s %-15s : $CHECK_FILE_COUNT \n" "-" "Check file count"
     
     printf "%10s %-15s : $log_file \n" "-" "Log file"
     printf "%10s %-15s : $REPORT_FILE \n" "-" "Report file"
-    echo "Bye"
+    printf "%10s %-15s : $NEW_VIDEO_NAME_FILE \n" "-" "Video new name file"
 }
 log_file="$LOG_PATH/matching_video_log.txt"
 
 main | while IFS= read -r line; do printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee "$log_file"
+
+# remove duplicate name in file
+tmp_name_file="/tmp/.new_name"$(date +%s)
+sort "$NEW_VIDEO_NAME_FILE" | uniq > "$tmp_name_file"
+cat "$tmp_name_file" > "$NEW_VIDEO_NAME_FILE"
+rm -rf "$tmp_name_file"
+
+echo "Bye"
