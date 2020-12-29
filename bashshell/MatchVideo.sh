@@ -4,7 +4,7 @@
 #Description    : Finad all video in source folder, rename file (same ZipSun rule)
 #               moce file to target folder 
 #               Rename and move file to destination folder 
-#Version        : 1.5
+#Version        : 1.4
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -36,34 +36,44 @@ NEGLECTS_KEYWORD=("V1" "V2" "V3" "V4" "SQ" "-SW-" "-NA-" "FYT" "FTY" "SHORT" "SQ
 # List suffix keyword in video file name
 SUFFIX_LISTS=("SUB" "FINAL" "YT" "CLEAN" "TW" "TWITTER" "FB" "FACEBOOK" "YT" "YOUTUBE" "IG" "INSTAGRAM")
 
-# Log folder store application running log, report log
-# LOG_PATH="/mnt/log/"
-LOG_PATH="/home/jack/Documents/SourceCode/rename_script/log/"
-
-DELETED_PATH="/home/jack/Documents/SourceCode/rename_script/log/del"
-
-CHECK_PATH="/home/jack/Documents/SourceCode/rename_script/log/check"
-
-# Folder store mp4 video
-# MP4_PATH="/mnt/log/mp4/"
-MP4_PATH="/home/jack/Documents/SourceCode/rename_script/log/mp4/"
-
-# Folder sotre mov and mxf video file
-# MOV_MXF_PATH="/mnt/log/mxf/"
-MOV_MXF_PATH="/home/jack/Documents/SourceCode/rename_script/log/mxf/"
-
-VJ_PATH="/home/jack/Documents/SourceCode/rename_script/log/vj/"
-
+# Only process video that have this keyword in filename
 PROCESS_KEYWORD=("FINAL" "SUB" "CLEAN" "FB" "YT" "TW")
+
+#  Delete file that contain this keyword in file name
 DELETE_KEYWORD=("RECORD" "-VO" "-CAM" "-TAKE" "TEST")
 
+# Log folder store application running log, report log
+# LOG_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/log/"
+LOG_PATH="/mnt/log/"
+
+# This  folder store deleted file
+# DELETED_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/delete/"
+DELETED_PATH="/mnt/log/delete/"
+
+# This folder store files that need to check by manual
+# CHECK_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/check/"
+CHECK_PATH="/mnt/log/check/"
+
+# Folder store mp4 video
+# MP4_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mp4/"
+MP4_PATH="/mnt/log/mp4/"
+
+# Folder store mov and mxf video file
+# MOV_MXF_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mxf/"
+MOV_MXF_PATH="/mnt/log/mxf/"
+
+# Folder sotre the video that contain VJ in file name
+# VJ_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/vj/"
+VJ_PATH="/mnt/log/vj/"
+
 # Folder store file that doesn't match any name
-# OTHER_PATH="/mnt/log/other/"
-OTHER_PATH="/home/jack/Documents/SourceCode/rename_script/log/other/"
+# OTHER_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/other/"
+OTHER_PATH="/mnt/log/other/"
 
 #  Report file
 REPORT_FILE="$LOG_PATH/matched_video_report.csv"
 NEW_VIDEO_NAME_FILE="$LOG_PATH/new_video_name.txt"
+
 TOTAL_FILE_COUNT=0
 TOTAL_SIZE_COUNT=0
 DELETE_FILE_COUNT=0
@@ -419,7 +429,6 @@ find_video_suffix(){
 dummy_test(){
     local file_path="$1"
     local report_path="$2"
-    local new_video_name_path="$3"
     while IFS= read -r line
     do
         old_name=$(echo ${line^^})
@@ -462,7 +471,7 @@ dummy_test(){
             target_folder=$(get_target_folder_by_ext "$line")
             echo "Move to : $target_folder"
             echo "$line, $new_name,0, $target_folder" >> "$report_path"
-            echo "$new_name" >> "$new_video_name_path"
+            echo $(echo "$new_name" | cut -d '.' -f1) >> "$NEW_VIDEO_NAME_FILE"
         else
             echo "Unknow file name"
             echo "Move to : $CHECK_PATH"
@@ -478,7 +487,6 @@ dummy_test(){
 process_match_video(){
     local file_path="$1"
     local report_path="$2"
-    local new_video_name_path="$3"
     size=$(get_file_size "$file_path")
     old_name=$(basename "$file_path")
 
@@ -496,7 +504,7 @@ process_match_video(){
             echo "---------------------"
             echo
             DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT +1))
-            continue
+            return
         fi
     fi
 
@@ -512,7 +520,7 @@ process_match_video(){
         echo "---------------------"
         echo
         VJ_FILE_COUNT=$(($VJ_FILE_COUNT +1))
-        continue
+        return
     fi
 
     # Check file name contain valid keyword
@@ -533,7 +541,7 @@ process_match_video(){
             mv -f "$file_path" "$target_folder"
         fi
         echo "$(basename "$file_path"), $new_name,$(convert_size "$size"), $target_folder" >> "$report_path"
-        echo "$new_name" >> "$new_video_name_path"
+        echo $(echo "$new_name" | cut -d '.' -f1) >> "$NEW_VIDEO_NAME_FILE"
     else
         echo "Unknow file name"
         echo "Move to : $CHECK_PATH"
@@ -591,7 +599,7 @@ main(){
     if [[ -f "$INPUT" ]]; then
         # Input is text file
         echo "Input text file : $INPUT"
-        dummy_test "$INPUT" "$REPORT_FILE" "$NEW_VIDEO_NAME_FILE"
+        dummy_test "$INPUT" "$REPORT_FILE"
     else
         # Input is directorys
         # Collect all input folder
@@ -604,9 +612,12 @@ main(){
         echo "Finding video in folder ..."
         video_files=$(find $list_dir -type f \( -iname \*.mov -o -iname \*.mxf -o -iname \*.mp4 \))
         while IFS= read -r file; do
+            if [ ! -f "$file" ]; then
+                continue
+            fi
             size=$(get_file_size "$file")
             echo "($TOTAL_FILE_COUNT)File ($(convert_size $size)): $file"
-            process_match_video "$file" "$REPORT_FILE" "$NEW_VIDEO_NAME_FILE"
+            process_match_video "$file" "$REPORT_FILE"
             echo "---------------------"
             echo
             TOTAL_FILE_COUNT=$(($TOTAL_FILE_COUNT + 1))
@@ -621,9 +632,9 @@ main(){
     echo "===================="
     printf "%10s %-15s : $TOTAL_FILE_COUNT\n" "-" "Total files"
     printf "%10s %-15s : $(convert_size $TOTAL_SIZE_COUNT)\n" "-" "Total size"
-    printf "%10s %-15s : $DELETE_FILE_COUNT \n" "-" "Delete file count"
-    printf "%10s %-15s : $VJ_FILE_COUNT \n" "-" "VJ file count"
-    printf "%10s %-15s : $CHECK_FILE_COUNT \n" "-" "Check file count"
+    printf "%10s %-15s : $DELETE_FILE_COUNT \n" "-" "Delete file"
+    printf "%10s %-15s : $VJ_FILE_COUNT \n" "-" "VJ file"
+    printf "%10s %-15s : $CHECK_FILE_COUNT \n" "-" "Check file"
     
     printf "%10s %-15s : $log_file \n" "-" "Log file"
     printf "%10s %-15s : $REPORT_FILE \n" "-" "Report file"
