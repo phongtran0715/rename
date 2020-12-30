@@ -4,7 +4,7 @@
 #Description    : Finad all video in source folder, rename file (same ZipSun rule)
 #               moce file to target folder 
 #               Rename and move file to destination folder 
-#Version        : 1.4
+#Version        : 1.5
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -34,41 +34,42 @@ NEGLECTS_KEYWORD=("V1" "V2" "V3" "V4" "SQ" "-SW-" "-NA-" "FYT" "FTY" "SHORT" "SQ
   "KHEIRA" "TAREK" "TABISH" "ZACH" "SUMMAQAH" "HAMAMOU" "ITANI" "YOMNA" "COPY" "COPIED")
 
 # List suffix keyword in video file name
-SUFFIX_LISTS=("SUB" "FINAL" "YT" "CLEAN" "TW" "TWITTER" "FB" "FACEBOOK" "YT" "YOUTUBE" "IG" "INSTAGRAM")
-
 # Only process video that have this keyword in filename
-PROCESS_KEYWORD=("FINAL" "SUB" "CLEAN" "FB" "YT" "TW")
+SUFFIX_LISTS=("SUB" "FINAL" "CLEAN" "TW" "TWITTER" "FB" "FACEBOOK" "YT" "YOUTUBE" "IG" "INSTAGRAM")
 
 #  Delete file that contain this keyword in file name
 DELETE_KEYWORD=("RECORD" "-VO" "-CAM" "-TAKE" "TEST")
 
+# File name contain this kewords will not be deleted
+WHITE_LIST_KEYWORD=("CAMBRIDGEXAMS" "CAMPDAVIDACCORDS" "WASHINGDISHESRECORD" "CONFEDERATESTATUE" "HOTTESTPEPPER" "VOICEWHEELCHAIR" "PROTEST")
+
 # Log folder store application running log, report log
-# LOG_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/log/"
-LOG_PATH="/mnt/log/"
+LOG_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/log/"
+# LOG_PATH="/mnt/log/"
 
 # This  folder store deleted file
-# DELETED_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/delete/"
-DELETED_PATH="/mnt/log/delete/"
+DELETED_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/delete/"
+# DELETED_PATH="/mnt/log/delete/"
 
 # This folder store files that need to check by manual
-# CHECK_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/check/"
-CHECK_PATH="/mnt/log/check/"
+CHECK_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/check/"
+# CHECK_PATH="/mnt/log/check/"
 
 # Folder store mp4 video
-# MP4_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mp4/"
-MP4_PATH="/mnt/log/mp4/"
+MP4_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mp4/"
+# MP4_PATH="/mnt/log/mp4/"
 
 # Folder store mov and mxf video file
-# MOV_MXF_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mxf/"
-MOV_MXF_PATH="/mnt/log/mxf/"
+MOV_MXF_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mxf/"
+# MOV_MXF_PATH="/mnt/log/mxf/"
 
 # Folder sotre the video that contain VJ in file name
-# VJ_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/vj/"
-VJ_PATH="/mnt/log/vj/"
+VJ_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/vj/"
+# VJ_PATH="/mnt/log/vj/"
 
 # Folder store file that doesn't match any name
-# OTHER_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/other/"
-OTHER_PATH="/mnt/log/other/"
+OTHER_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/other/"
+# OTHER_PATH="/mnt/log/other/"
 
 #  Report file
 REPORT_FILE="$LOG_PATH/matched_video_report.csv"
@@ -117,15 +118,17 @@ do
 done
 shift $((OPTIND -1))
 
-
+# convert file size to human readable
 convert_size(){
     printf %s\\n $1 | LC_NUMERIC=en_US numfmt --to=iec
 }
 
+# get file size
 get_file_size(){
     echo $(stat -c%s "$1")
 }
 
+# check text is suffix or not
 is_suffix(){
   local data="$1"
   for i in "${!SUFFIX_LISTS[@]}";do
@@ -134,6 +137,20 @@ is_suffix(){
     fi
   done
   return 1 #false
+}
+
+# get modification of file
+# if file doesn't exist -> return current date
+get_modification_date(){
+    local file="$1"
+    date=$(date +'%d%m%y')
+    if [ -f "$file" ];then
+        epoch_time=$(stat -c "%Y" -- "$file")
+        if [ ! -z $epoch_time ]; then
+            date=$(date -d @$epoch_time +"%d%m%y");
+        fi
+    fi
+    echo "$date"
 }
 
 check_position_replace(){
@@ -239,7 +256,7 @@ remove_blacklist_keyword(){
 order_movie_element(){
   local old_name="$1"
   local name="$2"
-  local path="$3"
+  local file_path="$3"
   lang=""
   team=""
   desc=""
@@ -291,11 +308,16 @@ order_movie_element(){
     if [ ! -z $match ];then value=${value//"$match"/""}; fi
     # get suffix, only process suffix with movie type
     if is_suffix $value;then
-      if [ -z $tmpSuffix ];then
-        tmpSuffix="$value"
-      else
-        tmpSuffix=$tmpSuffix-$value
-      fi
+        # change long suffix to short suffix
+        value=${value/"TWITTER"/"TW"}
+        value=${value/"FACEBOOK"/"FB"}
+        value=${value/"YOUTUBE"/"YT"}
+        value=${value/"INSTAGRAM"/"IG"}
+        if [ -z $tmpSuffix ];then
+            tmpSuffix="$value"
+        else
+            tmpSuffix=$tmpSuffix-$value
+        fi
     else
       if [ ! -z $value ];then desc+="$value-"; fi
     fi
@@ -317,11 +339,12 @@ order_movie_element(){
   else name="$lang$team$desc";fi
 
   #append date
-  if [ -z $date ]; then date=$(date +'%m%d%y'); fi
+  if [ -z $date ]; then
+    date=$(get_modification_date "$file_path")
+  fi
   name="$name-$date"
   #append suffix if type is movie
-  if [ ! -z $tmpSuffix ];then name=$name-$tmpSuffix
-  else name=$name"-RAW";fi
+  if [ ! -z $tmpSuffix ];then name=$name-$tmpSuffix;fi
   echo $name
 }
 
@@ -383,7 +406,7 @@ standardized_name(){
   name=$(process_episode "$name")
 
   # reorder element
-  name=$(order_movie_element "$old_name" "$name" "$path")
+  name=$(order_movie_element "$old_name" "$name" "$file_path")
 
   if [ ! -z ${ext+x} ]; then name=$name".$ext"; fi
   #Remove duplicate chracter (_, -)
@@ -414,21 +437,24 @@ get_target_folder_by_ext(){
     echo $result
 }
 
-find_video_suffix(){
-    local file_name="$1"
-
-    for val in "${SUFFIX_LISTS[@]}"; do
-        val_ext="-""$val"
-        if [[ "$file_name" == *"$val_ext"* ]];then
-            echo $val
-            return
-        fi
-    done
+# save new video file name to text file
+save_new_video_name(){
+    local new_name="$1"
+    # remove extension
+    new_name=$(echo "$new_name" | cut -d '.' -f1)
+    #remove suffix
+    latest_part=$(echo "$new_name" | rev | cut -d'-' -f 1 | rev)
+    remaining_part=$(echo "$new_name" | rev | cut -d'-' -f2- | rev)
+    if is_suffix $latest_part;then
+        echo "$remaining_part" >> "$NEW_VIDEO_NAME_FILE"
+    else
+        echo "$new_name" >> "$NEW_VIDEO_NAME_FILE"
+    fi
 }
 
+# run test with text input file
 dummy_test(){
     local file_path="$1"
-    local report_path="$2"
     while IFS= read -r line
     do
         old_name=$(echo ${line^^})
@@ -437,13 +463,13 @@ dummy_test(){
         TOTAL_FILE_COUNT=$(($TOTAL_FILE_COUNT + 1))
 
         # Check delete condition
-        match=$(echo $old_name | grep -o "$DELETE_GREP_LIST")
-        if [ ! -z "$match" ];then
-            match=$(echo $old_name | grep -o 'PROTEST')
+        match=$(echo $old_name | grep -o "$DELETE_KEYWORD")
+        if [ ! -z "$match_del" ];then
+            match=$(echo $old_name | grep -o "$WHITELIST_GREP_LIST")
             if [ -z "$match" ];then
                 echo "Found deleted keyword"
                 echo "Move to : $DELETED_PATH"
-                echo "$line, - ,0, $DELETED_PATH" >> "$report_path"
+                echo "$line, - ,0, $DELETED_PATH" >> "$REPORT_FILE"
                 echo "---------------------"
                 echo
                 DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT + 1))
@@ -456,7 +482,7 @@ dummy_test(){
         if [ ! -z "$match" ];then
             echo "Found VJ keyword"
             echo "Move to : $VJ_PATH"
-            echo "$line, - ,0, $VJ_PATH" >> "$report_path"
+            echo "$line, - ,0, $VJ_PATH" >> "$REPORT_FILE"
             echo "---------------------"
             echo
             VJ_FILE_COUNT=$(($VJ_FILE_COUNT + 1))
@@ -470,12 +496,12 @@ dummy_test(){
             echo "New name : $new_name"
             target_folder=$(get_target_folder_by_ext "$line")
             echo "Move to : $target_folder"
-            echo "$line, $new_name,0, $target_folder" >> "$report_path"
-            echo $(echo "$new_name" | cut -d '.' -f1) >> "$NEW_VIDEO_NAME_FILE"
+            echo "$line, $new_name,0, $target_folder" >> "$REPORT_FILE"
+            save_new_video_name "$new_name"
         else
             echo "Unknow file name"
             echo "Move to : $CHECK_PATH"
-            echo "$line, - ,0, $CHECK_PATH" >> "$report_path"
+            echo "$line, - ,0, $CHECK_PATH" >> "$REPORT_FILE"
             CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT +1))
         fi
         
@@ -484,23 +510,23 @@ dummy_test(){
     done < "$file_path"
 }
 
+# run application with input folder
 process_match_video(){
     local file_path="$1"
-    local report_path="$2"
     size=$(get_file_size "$file_path")
     old_name=$(basename "$file_path")
 
     # Check delete condition
     match=$(echo $old_name | grep -o "$DELETE_GREP_LIST")
     if [ ! -z "$match" ];then
-        match=$(echo $old_name | grep -o 'PROTEST')
+        match=$(echo $old_name | grep -o "$WHITELIST_GREP_LIST")
         if [ -z "$match" ];then
             echo "Found deleted keyword"
             echo "Move to : $DELETED_PATH"
             if [[ $mode == "RUN" ]];then
                 mv -f "$file_path" "$DELETED_PATH"
             fi
-            echo "$(basename "$file_path"), - ,$(convert_size "$size"), $DELETED_PATH" >> "$report_path"
+            echo "$(basename "$file_path"), - ,$(convert_size "$size"), $DELETED_PATH" >> "$REPORT_FILE"
             echo "---------------------"
             echo
             DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT +1))
@@ -516,7 +542,7 @@ process_match_video(){
         if [[ $mode == "RUN" ]];then
             mv -f "$file_path" "$VJ_PATH"
         fi
-        echo "$(basename "$file_path"), - ,$(convert_size "$size"), $VJ_PATH" >> "$report_path"
+        echo "$(basename "$file_path"), - ,$(convert_size "$size"), $VJ_PATH" >> "$REPORT_FILE"
         echo "---------------------"
         echo
         VJ_FILE_COUNT=$(($VJ_FILE_COUNT +1))
@@ -540,15 +566,15 @@ process_match_video(){
         if [[ $mode == "RUN" ]];then
             mv -f "$file_path" "$target_folder"
         fi
-        echo "$(basename "$file_path"), $new_name,$(convert_size "$size"), $target_folder" >> "$report_path"
-        echo $(echo "$new_name" | cut -d '.' -f1) >> "$NEW_VIDEO_NAME_FILE"
+        echo "$(basename "$file_path"), $new_name,$(convert_size "$size"), $target_folder" >> "$REPORT_FILE"
+        save_new_video_name "$new_name"
     else
         echo "Unknow file name"
         echo "Move to : $CHECK_PATH"
         if [[ $mode == "RUN" ]];then
             mv -f "$file_path" "$CHECK_PATH"
         fi
-        echo "$(basename "$file_path"), - ,$(convert_size "$size"), $CHECK_PATH" >> "$report_path"
+        echo "$(basename "$file_path"), - ,$(convert_size "$size"), $CHECK_PATH" >> "$REPORT_FILE"
         CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT +1))
     fi
 }
@@ -560,14 +586,19 @@ main(){
     for i in "${!DELETE_KEYWORD[@]}";do
         DELETE_GREP_LIST="${DELETE_GREP_LIST}""\|""${DELETE_KEYWORD[$i]}"
     done
-    echo "DELETE GREP LIST: $DELETE_GREP_LIST"
 
     # create list valid keyword
     PROCESS_GREP_LIST=""
-    for i in "${!PROCESS_KEYWORD[@]}";do
-        PROCESS_GREP_LIST="${PROCESS_GREP_LIST}""\|""${PROCESS_KEYWORD[$i]}"
+    for i in "${!SUFFIX_LISTS[@]}";do
+        PROCESS_GREP_LIST="${PROCESS_GREP_LIST}""\|-""${SUFFIX_LISTS[$i]}"
     done
-    echo "PROCESS_GREP_LIST: $PROCESS_GREP_LIST"
+
+    # create list whitelist keyword 
+    WHITELIST_GREP_LIST=""
+    for i in "${!WHITE_LIST_KEYWORD[@]}";do
+        WHITELIST_GREP_LIST="${WHITELIST_GREP_LIST}""\|""${WHITE_LIST_KEYWORD[$i]}"
+    done
+    echo "WHITELIST_GREP_LIST : $WHITELIST_GREP_LIST"
     
     if [ ! -f "$COUNTRY_FILE" ]; then
         echo "Not found country file : " $COUNTRY_FILE
@@ -599,7 +630,7 @@ main(){
     if [[ -f "$INPUT" ]]; then
         # Input is text file
         echo "Input text file : $INPUT"
-        dummy_test "$INPUT" "$REPORT_FILE"
+        dummy_test "$INPUT"
     else
         # Input is directorys
         # Collect all input folder
@@ -617,7 +648,7 @@ main(){
             fi
             size=$(get_file_size "$file")
             echo "($TOTAL_FILE_COUNT)File ($(convert_size $size)): $file"
-            process_match_video "$file" "$REPORT_FILE"
+            process_match_video "$file"
             echo "---------------------"
             echo
             TOTAL_FILE_COUNT=$(($TOTAL_FILE_COUNT + 1))
@@ -645,6 +676,7 @@ log_file="$LOG_PATH/matching_video_log.txt"
 main | while IFS= read -r line; do printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee "$log_file"
 
 # remove duplicate name in file
+sleep 3
 tmp_name_file="/tmp/.new_name"$(date +%s)
 sort "$NEW_VIDEO_NAME_FILE" | uniq > "$tmp_name_file"
 cat "$tmp_name_file" > "$NEW_VIDEO_NAME_FILE"
