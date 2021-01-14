@@ -30,7 +30,7 @@ LANGUAGES=("AR" "EN" "FR" "ES")
 TEAMS=("RT", "NG" "EG" "CT" "SH" "ST")
 
 # Neglects keyword will be remove from zip file name
-NEGLECTS_KEYWORD=("V1" "V2" "V3" "V4" "SQ" "-SW-" "-NA-" "FYT" "FTY" "SHORT" "SQUARE" "SAKHR"
+NEGLECTS_KEYWORD=("V1" "V2" "V3" "V4" "SQ" "-SW-" "-NA-" "-CL-" "FYT" "FTY" "SHORT" "SQUARE" "SAKHR"
   "KHEIRA" "TAREK" "TABISH" "ZACH" "SUMMAQAH" "HAMAMOU" "ITANI" "YOMNA" "COPY" "COPIED")
 
 # List suffix keyword in video file name
@@ -48,28 +48,28 @@ LOG_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/log/"
 # LOG_PATH="/mnt/log/"
 
 # This  folder store deleted file
-DELETED_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/delete/"
-# DELETED_PATH="/mnt/log/delete/"
+# DELETED_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/delete/"
+DELETED_PATH="/mnt/log/delete/"
 
 # This folder store files that need to check by manual
-CHECK_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/check/"
-# CHECK_PATH="/mnt/log/check/"
+# CHECK_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/check/"
+CHECK_PATH="/mnt/log/check/"
 
 # Folder store mp4 video
-MP4_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mp4/"
-# MP4_PATH="/mnt/log/mp4/"
+# MP4_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mp4/"
+MP4_PATH="/mnt/log/mp4/"
 
 # Folder store mov and mxf video file
-MOV_MXF_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mxf/"
-# MOV_MXF_PATH="/mnt/log/mxf/"
+# MOV_MXF_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mxf/"
+MOV_MXF_PATH="/mnt/log/mxf/"
 
 # Folder sotre the video that contain VJ in file name
-VJ_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/vj/"
-# VJ_PATH="/mnt/log/vj/"
+# VJ_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/vj/"
+VJ_PATH="/mnt/log/vj/"
 
 # Folder store file that doesn't match any name
-OTHER_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/other/"
-# OTHER_PATH="/mnt/log/other/"
+# OTHER_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/other/"
+OTHER_PATH="/mnt/log/other/"
 
 #  Report file
 REPORT_FILE="$LOG_PATH/matched_video_report.csv"
@@ -77,9 +77,21 @@ NEW_VIDEO_NAME_FILE="$LOG_PATH/new_video_name.txt"
 
 TOTAL_FILE_COUNT=0
 TOTAL_SIZE_COUNT=0
+
+MP4_FILE_COUNT=0
+MP4_SIZE_COUNT=0
+
+MXF_MOV_FILE_COUNT=0
+MXF_MOV_SIZE_COUNT=0
+
 DELETE_FILE_COUNT=0
+DELETE_FILE_COUNT=0
+
 VJ_FILE_COUNT=0
+VJ_SIZE_COUNT=0
+
 CHECK_FILE_COUNT=0
+CHECK_SIZE_COUNT=0
 
 gline_path="/tmp/.line_"$(date +%s)
 gteam_path="/tmp/.team_"$(date +%s)
@@ -358,8 +370,8 @@ standardized_name(){
   local name=$old_name
   #Remove .extension
   if [[ "$name" == *"."* ]]; then
-    ext=$(echo $name | cut -d '.' -f2-)
-    name=$(echo $name | cut -d '.' -f 1)
+    ext=$(echo $name | rev | cut -d'.' -f 1 | rev)
+    name=$(echo $name | rev | cut -d'.' -f2- | rev)
   fi
 
   # convert from UTF-8 to ASCII 
@@ -370,6 +382,12 @@ standardized_name(){
 
   #Remove illegal characters
   name=$(echo $name | sed 's/[^.a-zA-Z0-9_-]//g')
+
+  #Remove .n characters
+  match=$(echo $name | grep -oE '[.][0-9]{1,}')
+  if [ ! -z "$match" ];then
+    name=${name/$match/""}
+  fi
 
   #Convert lower case to upper case
   name=$(echo ${name^^})
@@ -429,10 +447,28 @@ standardized_name(){
 
 get_target_folder_by_ext(){
     local file="$1"
+    if [ mode == "RUN" ];then 
+      size=$(get_file_size "$file")
+    fi
     file_ext=$(echo "$file" | rev | cut -d'.' -f 1 | rev)
-    if [[ $file_ext == "mp4" ]] || [[ $file_ext == "MP4" ]];then result="$MP4_PATH";
-    elif [[ $file_ext == "mov" ]] || [[ $file_ext == "MOV" ]];then result="$MOV_MXF_PATH";
-    elif [[ $file_ext == "mxf" ]] || [[ $file_ext == "MXF" ]];then result="$MOV_MXF_PATH";
+    if [[ $file_ext == "mp4" ]] || [[ $file_ext == "MP4" ]];then
+      result="$MP4_PATH"
+      MP4_FILE_COUNT=$(($MP4_FILE_COUNT + 1))
+      if [ mode == "RUN" ];then 
+        MP4_SIZE_COUNT=$(($MP4_SIZE_COUNT + $size))
+      fi
+    elif [[ $file_ext == "mov" ]] || [[ $file_ext == "MOV" ]];then
+      result="$MOV_MXF_PATH"
+      MXF_MOV_FILE_COUNT=$(($MXF_MOV_FILE_COUNT + 1))
+      if [ mode == "RUN" ];then 
+        MXF_MOV_SIZE_COUNT=$(($MXF_MOV_SIZE_COUNT + $size))
+      fi
+    elif [[ $file_ext == "mxf" ]] || [[ $file_ext == "MXF" ]];then
+      result="$MOV_MXF_PATH"
+      MXF_MOV_FILE_COUNT=$(($MXF_MOV_FILE_COUNT + 1))
+      if [ mode == "RUN" ];then 
+        MXF_MOV_SIZE_COUNT=$(($MXF_MOV_SIZE_COUNT + $size))
+      fi
     else result="$OTHER_PATH";fi
     echo $result
 }
@@ -530,6 +566,7 @@ process_match_video(){
             echo "---------------------"
             echo
             DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT +1))
+            DELETE_SIZE_COUNT=$(($DELETE_SIZE_COUNT + $size))
             return
         fi
     fi
@@ -546,6 +583,7 @@ process_match_video(){
         echo "---------------------"
         echo
         VJ_FILE_COUNT=$(($VJ_FILE_COUNT +1))
+        VJ_SIZE_COUNT=$(($VJ_SIZE_COUNT + $size))
         return
     fi
 
@@ -576,6 +614,7 @@ process_match_video(){
         fi
         echo "$(basename "$file_path"), - ,$(convert_size "$size"), $CHECK_PATH" >> "$REPORT_FILE"
         CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT +1))
+        CHECK_SIZE_COUNT=$(($CHECK_SIZE_COUNT + $size))
     fi
 }
 
