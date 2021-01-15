@@ -4,7 +4,7 @@
 #Description    : Finad all video in source folder, rename file (same ZipSun rule)
 #               moce file to target folder 
 #               Rename and move file to destination folder 
-#Version        : 1.5
+#Version        : 1.6
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -240,7 +240,6 @@ correct_desc_info(){
 
 remove_blacklist_keyword(){
   local name="$1"
-  shift
   for i in "${NEGLECTS_KEYWORD[@]}";do
     name=${name//"$i"/""}
   done
@@ -300,19 +299,23 @@ order_movie_element(){
   IFS='-' read -ra arr <<< "$name"
   count=${#arr[@]}
   tmpSuffix=""
+  previous_value=""
   for i in "${!arr[@]}";do
     value=${arr[$i]}
     #get language
     if [ ${#value} -eq 2 ] && [[ "${LANGUAGES[@]}" =~ "$value" ]]; then
       lang=$value"-"
+      previous_value=$value
       continue
     fi
     #get team, desc
     if [ ${#value} -eq 2 ] && [[ "${TEAMS[@]}" =~ $value ]]; then
       team=$value"-"
+      previous_value=$value
       continue
     elif [[ $value == "VJ" ]] || [[ $value == "PL" ]];then
       team="NG-"
+      previous_value=$value
       continue
     fi
     # remove repeated character (XX)
@@ -320,27 +323,33 @@ order_movie_element(){
     if [ ! -z $match ];then value=${value//"$match"/""}; fi
     # get suffix, only process suffix with movie type
     if is_suffix $value;then
-        # change long suffix to short suffix
-        value=${value/"TWITTER"/"TW"}
-        value=${value/"FACEBOOK"/"FB"}
-        value=${value/"YOUTUBE"/"YT"}
-        value=${value/"INSTAGRAM"/"IG"}
-        if [ -z $tmpSuffix ];then
-            tmpSuffix="$value"
+        # get previous value, if previous value is team
+        # this value will be description
+        if [[ "${TEAMS[@]}" =~ $previous_value ]] && [ ! -z $previous_value ];then
+          desc+="$value"
         else
-            tmpSuffix=$tmpSuffix-$value
+          # change long suffix to short suffix
+          value=${value/"TWITTER"/"TW"}
+          value=${value/"FACEBOOK"/"FB"}
+          value=${value/"YOUTUBE"/"YT"}
+          value=${value/"INSTAGRAM"/"IG"}
+          tmpSuffix="$value"
         fi
+        
     else
       if [ ! -z $value ];then desc+="$value-"; fi
     fi
+    previous_value=$value
   done
   echo "$tmpSuffix" > "$gsuffix_path";
 
   if [ -z "$team" ];then team="RT-"; fi
 
   #remove "-" at the end of desc
-  index=$((${#desc} -1))
-  if [ $index -gt 0 ];then desc=${desc:0:index}; fi
+  latest_desc_char= $(echo "${str: -1}")
+  if [[ $latest_desc_char == "-" ]]; then
+    desc=${desc:0:index}
+  fi
   desc=$(correct_desc_info "$desc")
 
   if [ -z "$lang" ] && [ ! -z "$default_lang" ];then
@@ -488,6 +497,36 @@ save_new_video_name(){
     fi
 }
 
+is_contain_blacklist(){
+  local file_name="$1"
+  for i in "${DELETE_KEYWORD[@]}";do
+    if [[ $file_name == *"$i"* ]]; then
+      return 0 #true
+    fi
+  done
+  return 1 #false
+}
+
+is_contain_whitelist(){
+  local file_name="$1"
+  for i in "${WHITE_LIST_KEYWORD[@]}";do
+    if [[ $file_name == *"$i"* ]]; then
+      return 0 #true
+    fi
+  done
+  return 1 #false
+}
+
+is_contain_process_keyword(){
+  local file_name="$1"
+  for i in "${SUFFIX_LISTS[@]}";do
+    if [[ $file_name == *"$i"* ]]; then
+      return 0 #true
+    fi
+  done
+  return 1 #false
+}
+
 # run test with text input file
 dummy_test(){
     local file_path="$1"
@@ -499,18 +538,18 @@ dummy_test(){
         TOTAL_FILE_COUNT=$(($TOTAL_FILE_COUNT + 1))
 
         # Check delete condition
-        match=$(echo $old_name | grep -o "$DELETE_KEYWORD")
-        if [ ! -z "$match_del" ];then
-            match=$(echo $old_name | grep -o "$WHITELIST_GREP_LIST")
-            if [ -z "$match" ];then
-                echo "Found deleted keyword"
-                echo "Move to : $DELETED_PATH"
-                echo "$line, - ,0, $DELETED_PATH" >> "$REPORT_FILE"
-                echo "---------------------"
-                echo
-                DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT + 1))
-                continue
-            fi
+        if is_contain_blacklist "$old_name"; then
+          if is_contain_whitelist "$old_name"; then
+            echo "Contain white list"
+          else
+            echo "Found deleted keyword"
+            echo "Move to : $DELETED_PATH"
+            echo "$line, - ,0, $DELETED_PATH" >> "$REPORT_FILE"
+            echo "---------------------"
+            echo
+            DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT + 1))
+            continue
+          fi
         fi
 
         # check VJ keyword
@@ -526,19 +565,18 @@ dummy_test(){
         fi
 
         # Check file name contain valid keyword
-        match=$(echo $old_name | grep -o "$PROCESS_GREP_LIST")
-        if [ ! -z "$match" ];then
-            new_name=$(standardized_name "$old_name")
-            echo "New name : $new_name"
-            target_folder=$(get_target_folder_by_ext "$line")
-            echo "Move to : $target_folder"
-            echo "$line, $new_name,0, $target_folder" >> "$REPORT_FILE"
-            save_new_video_name "$new_name"
+        if is_contain_process_keyword "$old_name"; then
+          new_name=$(standardized_name "$old_name")
+          echo "New name : $new_name"
+          target_folder=$(get_target_folder_by_ext "$line")
+          echo "Move to : $target_folder"
+          echo "$line, $new_name,0, $target_folder" >> "$REPORT_FILE"
+          save_new_video_name "$new_name"
         else
-            echo "Unknow file name"
-            echo "Move to : $CHECK_PATH"
-            echo "$line, - ,0, $CHECK_PATH" >> "$REPORT_FILE"
-            CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT +1))
+          echo "Unknow file name"
+          echo "Move to : $CHECK_PATH"
+          echo "$line, - ,0, $CHECK_PATH" >> "$REPORT_FILE"
+          CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT +1))
         fi
         
         echo "---------------------"
@@ -553,9 +591,9 @@ process_match_video(){
     old_name=$(basename "$file_path")
 
     # Check delete condition
-    match=$(echo $old_name | grep -o "$DELETE_GREP_LIST")
+    match=$(echo $old_name | grep -o $DELETE_GREP_LIST)
     if [ ! -z "$match" ];then
-        match=$(echo $old_name | grep -o "$WHITELIST_GREP_LIST")
+        match=$(echo $old_name | grep -o $WHITELIST_GREP_LIST)
         if [ -z "$match" ];then
             echo "Found deleted keyword"
             echo "Move to : $DELETED_PATH"
@@ -588,7 +626,7 @@ process_match_video(){
     fi
 
     # Check file name contain valid keyword
-    match=$(echo $old_name | grep -o "$PROCESS_GREP_LIST")
+    match=$(echo $old_name | grep -o $PROCESS_GREP_LIST)
     if [ ! -z "$match" ];then
         new_name=$(standardized_name "$old_name")
         echo "New name : $new_name"
@@ -619,26 +657,7 @@ process_match_video(){
 }
 
 main(){
-
-    # create list delete keyword
-    DELETE_GREP_LIST=""
-    for i in "${!DELETE_KEYWORD[@]}";do
-        DELETE_GREP_LIST="${DELETE_GREP_LIST}""\|""${DELETE_KEYWORD[$i]}"
-    done
-
-    # create list valid keyword
-    PROCESS_GREP_LIST=""
-    for i in "${!SUFFIX_LISTS[@]}";do
-        PROCESS_GREP_LIST="${PROCESS_GREP_LIST}""\|-""${SUFFIX_LISTS[$i]}"
-    done
-
-    # create list whitelist keyword 
-    WHITELIST_GREP_LIST=""
-    for i in "${!WHITE_LIST_KEYWORD[@]}";do
-        WHITELIST_GREP_LIST="${WHITELIST_GREP_LIST}""\|""${WHITE_LIST_KEYWORD[$i]}"
-    done
-    echo "WHITELIST_GREP_LIST : $WHITELIST_GREP_LIST"
-    
+    echo "" > app.log
     if [ ! -f "$COUNTRY_FILE" ]; then
         echo "Not found country file : " $COUNTRY_FILE
         exit 1
