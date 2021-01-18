@@ -434,6 +434,7 @@ standardized_name(){
 
   # reorder element
   name=$(order_movie_element "$old_name" "$name" "$file_path")
+  echo $name >> app.log
 
   if [ ! -z ${ext+x} ]; then name=$name".$ext"; fi
   #Remove duplicate chracter (_, -)
@@ -451,6 +452,10 @@ standardized_name(){
 
   name=${name/"ES-ST"/"ES-RT"}
   name=${name/"E-SH"/"ES-RT"}
+
+  for i in "${TEAMS[@]}";do
+    name=${name/"$i""_"/"$i""-"}
+  done
   echo $name
 }
 
