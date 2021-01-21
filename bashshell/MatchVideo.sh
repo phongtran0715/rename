@@ -4,7 +4,7 @@
 #Description    : Finad all video in source folder, rename file (same ZipSun rule)
 #               moce file to target folder 
 #               Rename and move file to destination folder 
-#Version        : 1.6
+#Version        : 1.7
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -435,6 +435,11 @@ standardized_name(){
   # reorder element
   name=$(order_movie_element "$old_name" "$name" "$file_path")
 
+  # remove duplicate exe inside name
+  name=${name/".MP4"/""}
+  name=${name/".MOV"/""}
+  name=${name/".MXF"/""}
+
   if [ ! -z ${ext+x} ]; then name=$name".$ext"; fi
   #Remove duplicate chracter (_, -)
   tmp_name=""
@@ -475,7 +480,7 @@ get_target_folder_by_ext(){
 save_new_video_name(){
 	local new_name="$1"
 	# remove extension
-	new_name=$(echo "$new_name" | cut -d '.' -f1)
+	new_name=$(echo "$new_name" | rev | cut -d'.' -f2- | rev)
 	#remove suffix
 	latest_part=$(echo "$new_name" | rev | cut -d'-' -f 1 | rev)
 	remaining_part=$(echo "$new_name" | rev | cut -d'-' -f2- | rev)
@@ -609,7 +614,7 @@ process_match_video(){
 		if [[ $mode == "RUN" ]];then
 		  mv -f "$file_path" "$DELETED_PATH"
 		fi
-		echo "$(basename "$file_path"), - ,$(convert_size "$size"), $DELETED_PATH" >> "$REPORT_FILE"
+		echo "$old_name, - ,$(convert_size "$size"), $DELETED_PATH" >> "$REPORT_FILE"
 		echo "---------------------"
 		echo
 		DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT +1))
@@ -626,7 +631,7 @@ process_match_video(){
 		if [[ $mode == "RUN" ]];then
 			mv -f "$file_path" "$VJ_PATH"
 		fi
-		echo "$(basename "$file_path"), - ,$(convert_size "$size"), $VJ_PATH" >> "$REPORT_FILE"
+		echo "$old_name, - ,$(convert_size "$size"), $VJ_PATH" >> "$REPORT_FILE"
 		echo "---------------------"
 		echo
 		VJ_FILE_COUNT=$(($VJ_FILE_COUNT +1))
@@ -650,7 +655,7 @@ process_match_video(){
 		if [[ $mode == "RUN" ]];then
 			mv -f "$file_path" "$target_folder"
 		fi
-		echo "$(basename "$file_path"), $new_name,$(convert_size "$size"), $target_folder" >> "$REPORT_FILE"
+		echo "$old_name, $new_name,$(convert_size "$size"), $target_folder" >> "$REPORT_FILE"
 		save_new_video_name "$new_name"
 
 		file_ext=$(echo "$file" | rev | cut -d'.' -f 1 | rev)
@@ -679,7 +684,7 @@ process_match_video(){
 		if [[ $mode == "RUN" ]];then
 			mv -f "$file_path" "$CHECK_PATH"
 		fi
-		echo "$(basename "$file_path"), - ,$(convert_size "$size"), $CHECK_PATH" >> "$REPORT_FILE"
+		echo "$old_name, - ,$(convert_size "$size"), $CHECK_PATH" >> "$REPORT_FILE"
 		CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT +1))
 		CHECK_SIZE_COUNT=$(($CHECK_SIZE_COUNT + $size))
 	fi
