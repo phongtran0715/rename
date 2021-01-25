@@ -3,7 +3,7 @@
 #Script Name    : ZipSun
 #Description    : This script loop through all zip file in sub-folder
 #                 Rename zip file by our rule and move file to target folder
-#Version        : 8.3
+#Version        : 8.4
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -786,7 +786,7 @@ check_zip_file(){
     return;
   fi
 
-  if [ $zipSize -lt $MAX_SIZE_THRESHOLD ]; then
+  if [ $zipSize -gt $MAX_SIZE_THRESHOLD ]; then
     target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
     printf "${GRAY}($index)Zip\t: %-50s - Size: %s - Exceed max file size threshold ${NC}\n" "$old_zip_name" "$(convert_size $zipSize)"
     echo -e "Moved to : $target_folder"
@@ -939,7 +939,7 @@ process_zip_file(){
     return;
   fi
 
-  if [ $zipSize -lt $MAX_SIZE_THRESHOLD ]; then
+  if [ $zipSize -gt $MAX_SIZE_THRESHOLD ]; then
     target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
     printf "${GRAY}($index)Zip\t: %-50s - Size: %s - Exceed max file size threshold ${NC}\n" "$old_zip_name" "$(convert_size $zipSize)"
     echo -e "Moved to : $target_folder"
