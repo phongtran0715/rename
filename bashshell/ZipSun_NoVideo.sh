@@ -3,7 +3,7 @@
 #Script Name    : ZipSun_NoVideo
 #Description    : This script loop through all zip file in sub-folder
 #                 Rename zip file by our rule and move file to target folder
-#Version        : 8.3.2
+#Version        : 8.3.4
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -110,16 +110,17 @@ helpFunction()
 {
 	echo ""
 	echo "Usage: $0 [option] folder_path [option] language"
-	echo -e "Example : ./rename -c /home/jack/Video -l AR"
+	echo -e "Example : ./rename -c /home/jack/Video -l AR -v enable"
 	echo -e "option:"
 	echo -e "\t-d Manula test with input text file"
 	echo -e "\t-c Check rename function"
 	echo -e "\t-x Apply rename function"
 	echo -e "\t-l Set language for file name"
+	echo -e "\t-v Validate zip file before processing (enable/disable). Default is disable"
 	exit 1
 }
 
-while getopts "d:c:x:l:t:" opt
+while getopts "d:c:x:l:t:v:" opt
 do
 	 case "$opt" in
 			d ) INPUT="$OPTARG"
@@ -130,6 +131,7 @@ do
 					mode="RUN";;
 			l ) default_lang="$OPTARG";;
 			t ) timestamp="$OPTARG";;
+			v ) validate_flag="$OPTARG";;
 			? ) helpFunction ;;
 	 esac
 done
@@ -142,9 +144,13 @@ then
 fi
 
 validate_zip(){
-	local file_path="$1"
-	result=$(zip -T "$file_path" | rev | cut -d ' ' -f 1 | rev) > /dev/null
-	echo "$result"
+	if [[ $validate_flag == "enable" ]];then
+		echo "$result" 
+	else
+		local file_path="$1"
+		result=$(zip -T "$file_path" | rev | cut -d ' ' -f 1 | rev) > /dev/null
+		echo "$result"
+	fi
 }
 
 get_db_file(){
