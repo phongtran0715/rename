@@ -144,13 +144,11 @@ then
 fi
 
 validate_zip(){
-	if [[ $validate_flag == "enable" ]];then
-		echo "$result" 
-	else
-		local file_path="$1"
-		result=$(zip -T "$file_path" | rev | cut -d ' ' -f 1 | rev) > /dev/null
-		echo "$result"
-	fi
+	echo -e "Validating zip file : $file"
+	local file_path="$1"
+	# result=$(zip -T "$file_path" | rev | cut -d ' ' -f 1 | rev) > /dev/null
+	result=$(zip -T "$file_path") > /dev/null
+	echo "$result"
 }
 
 get_db_file(){
@@ -204,6 +202,18 @@ is_suffix(){
 		if [[ "$data" == "${SUFFIX_LISTS[$i]}" ]];then
 			return 0 #true
 		fi
+	done
+	return 1 #false
+}
+
+is_subdir(){
+	local dir="$1"
+	base_dir=$(echo $(basename "$dir"))
+	base_dir=$(echo ${base_dir^^})
+	for i in "${!SUB_DIR_LISTS[@]}";do
+  		if [[ "$base_dir" == *"${SUB_DIR_LISTS[$i]}"* && "$base_dir" != *"PRV"* ]];then
+    		return 0 #true
+  		fi
 	done
 	return 1 #false
 }
@@ -592,7 +602,7 @@ check_zip_file(){
 		echo "$old_no_ext,under $(convert_size $DELETE_THRESHOLD),$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$DELETED_DIR"  >> $log_path
 		TOTAL_DEL_ZIP_FILE=$(($TOTAL_DEL_ZIP_FILE + 1))
 		TOTAL_DEL_ZIP_SIZE=$(($TOTAL_DEL_ZIP_SIZE + $zipSize))
-		return;
+		return
 	fi
 
 	if [ $zipSize -gt $MAX_SIZE_THRESHOLD ]; then
@@ -603,14 +613,15 @@ check_zip_file(){
 	fi
 
 	#  validate zip file integrity
-	echo -e "Validating zip file : $file"
-	is_valid=$(validate_zip "$file")
-	if [[ "$is_valid" != "OK" ]];then
-		printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
-		INVALID_ZIP=$((INVALID_ZIP + 1))
-		continue
-	else
-		echo -e "Zip file is valid."
+	if [[ $validate_flag == "enable" ]];then
+		is_valid=$(validate_zip "$file")
+		if [[ $is_valid == *"OK"* ]];then
+			echo -e "Zip file is valid."
+		else
+			printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
+			INVALID_ZIP=$((INVALID_ZIP + 1))
+			return
+		fi
 	fi
 
 	# check new zip file existed or not
@@ -633,6 +644,32 @@ check_zip_file(){
 	echo -e "Size\t:" "$(convert_size $zipSize)" " - Moved to : $target_folder"
 	echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder"  >> $log_path
 	echo "$new_no_ext"  >> $zip_log_path
+
+	# Get root zip directory name
+	root_dir_name=$(basename $(zipinfo -1 "$file_path" | head -n 1))
+	# Read zip content file
+	tmpDirs==$(unzip -Z -1 "$file_path" "*/" | cut -f 2 -d "/" | sort | uniq)
+	IFS=$'\n' read -rd '' -a dirs <<<"$tmpDirs"
+
+	for d in "${dirs[@]}";do
+		if is_subdir "$d";then
+			echo
+			d=$(basename "$d")
+			echo -e "Folder\t: [" $d "]"
+			# List all file in sub folder
+			tmpFiles=$(unzip -Zl -1 "$file_path" "$root_dir_name/$d/*" | egrep '.mp4|.MP4|.mov|.MOV|.mxf|.MXF' | sort -nr)
+			tmpSizes=$(unzip -Zl "$file_path" "$root_dir_name/$d/*" | egrep '.mp4|.MP4|.mov|.MOV|.mxf|.MXF' | awk '{print $4}' | sort -nr)
+			IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
+			IFS=$'\n' read -rd '' -a arrSizes <<<"$tmpSizes"
+
+			# count number of video
+			num_videos=${#arrFiles[@]}
+			if [ $num_videos -ge $NUM_VIDEO_THRESHOLD ];then
+					printf "${GRAY} Found %s video. Number video exceed threshold. Ignore this folder.${NC}\n"
+					continue
+			fi
+		fi
+	done
 }
 
 process_zip_file(){
@@ -692,14 +729,16 @@ process_zip_file(){
 	fi
 
 	#  validate zip file integrity
-	echo -e "Validating zip file : $file"
-	is_valid=$(validate_zip "$file")
-	if [[ "$is_valid" != "OK" ]];then
-		printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
-		INVALID_ZIP=$((INVALID_ZIP + 1))
-		continue
-	else
-		echo -e "Zip file is valid."
+	if [[ $validate_flag == "enable" ]];then
+		echo -e "Validating zip file : $file"
+		is_valid=$(validate_zip "$file")
+		if [[ "$is_valid" == *"OK"* ]];then
+			echo -e "Zip file is valid."
+		else
+			printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
+			INVALID_ZIP=$((INVALID_ZIP + 1))
+			continue
+		fi
 	fi
 
 	# check new zip file existed or not

@@ -123,10 +123,11 @@ helpFunction()
   echo -e "\t-c Check rename function"
   echo -e "\t-x Apply rename function"
   echo -e "\t-l Set language for file name"
+  echo -e "\t-v Validate zip file before processing (enable/disable). Default is disable"
   exit 1
 }
 
-while getopts "d:c:x:l:t:" opt
+while getopts "d:c:x:l:t:v:" opt
 do
    case "$opt" in
       d ) INPUT="$OPTARG"
@@ -137,6 +138,7 @@ do
           mode="RUN";;
       l ) default_lang="$OPTARG";;
       t ) timestamp="$OPTARG";;
+      v ) validate_flag="$OPTARG";;
       ? ) helpFunction ;;
    esac
 done
@@ -149,8 +151,10 @@ then
 fi
 
 validate_zip(){
+  echo -e "Validating zip file : $file"
   local file_path="$1"
-  result=$(zip -T "$file_path" | rev | cut -d ' ' -f 1 | rev) > /dev/null
+  # result=$(zip -T "$file_path" | rev | cut -d ' ' -f 1 | rev) > /dev/null
+  result=$(zip -T "$file_path") > /dev/null
   echo "$result"
 }
 
@@ -794,14 +798,15 @@ check_zip_file(){
   fi
 
   #  validate zip file integrity
-  echo -e "Validating zip file : $file"
-  is_valid=$(validate_zip "$file")
-  if [[ "$is_valid" != "OK" ]];then
-    printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
-    INVALID_ZIP=$((INVALID_ZIP + 1))
-    continue
-  else
-    echo -e "Zip file is valid."
+  if [[ $validate_flag == "enable" ]];then
+    is_valid=$(validate_zip "$file")
+    if [[ $is_valid == *"OK"* ]];then
+      echo -e "Zip file is valid."
+    else
+      printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
+      INVALID_ZIP=$((INVALID_ZIP + 1))
+      return
+    fi
   fi
 
   # check new zip file existed or not
@@ -844,7 +849,7 @@ check_zip_file(){
       IFS=$'\n' read -rd '' -a arrSizes <<<"$tmpSizes"
 
       # count number of video
-      num_videos=${!arrFiles[@]}
+      num_videos=${#arrFiles[@]}
       if [ $num_videos -ge $NUM_VIDEO_THRESHOLD ];then
         printf "${GRAY} Found %s video. Number video exceed threshold. Ignore this folder.${NC}\n"
         continue
@@ -949,14 +954,16 @@ process_zip_file(){
   fi
 
   #  validate zip file integrity
-  echo -e "Validating zip file : $file"
-  is_valid=$(validate_zip "$file")
-  if [[ "$is_valid" != "OK" ]];then
-    printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
-    INVALID_ZIP=$((INVALID_ZIP + 1))
-    continue
-  else
-    echo -e "Zip file is valid."
+  if [[ $validate_flag == "enable" ]];then
+    echo -e "Validating zip file : $file"
+    is_valid=$(validate_zip "$file")
+    if [[ "$is_valid" == *"OK"* ]];then
+      echo -e "Zip file is valid."
+    else
+      printf "${RED} Invalid zip file (corrupted or unreadable): $file${NC}\n"
+      INVALID_ZIP=$((INVALID_ZIP + 1))
+      continue
+    fi
   fi
 
   # check new zip file existed or not
@@ -1014,7 +1021,7 @@ process_zip_file(){
       IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
 
       # count number of video
-      num_videos=${!arrFiles[@]}
+      num_videos=${#arrFiles[@]}
       if [ $num_videos -ge $NUM_VIDEO_THRESHOLD ];then
         printf "${GRAY} Found %s video. Number video exceed threshold. Ignore this folder.${NC}\n"
         continue
