@@ -3,10 +3,12 @@
 #Script Name    : ZipSun_NoVideo
 #Description    : This script loop through all zip file in sub-folder
 #                 Rename zip file by our rule and move file to target folder
-#Version        : 8.3.4
+#Version        : 8.3.6
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
+
+_VERSION="ZipSun_NoVideo - 8.3.6"
 
 # Set log level msg/dbg 
 _DEBUG="dbg"
@@ -109,6 +111,7 @@ function DEBUG()
 helpFunction()
 {
 	echo ""
+	echo "Script version : $_VERSION"
 	echo "Usage: $0 [option] folder_path [option] language"
 	echo -e "Example : ./rename -c /home/jack/Video -l AR -v enable"
 	echo -e "option:"
@@ -644,32 +647,6 @@ check_zip_file(){
 	echo -e "Size\t:" "$(convert_size $zipSize)" " - Moved to : $target_folder"
 	echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder"  >> $log_path
 	echo "$new_no_ext"  >> $zip_log_path
-
-	# Get root zip directory name
-	root_dir_name=$(basename $(zipinfo -1 "$file_path" | head -n 1))
-	# Read zip content file
-	tmpDirs==$(unzip -Z -1 "$file_path" "*/" | cut -f 2 -d "/" | sort | uniq)
-	IFS=$'\n' read -rd '' -a dirs <<<"$tmpDirs"
-
-	for d in "${dirs[@]}";do
-		if is_subdir "$d";then
-			echo
-			d=$(basename "$d")
-			echo -e "Folder\t: [" $d "]"
-			# List all file in sub folder
-			tmpFiles=$(unzip -Zl -1 "$file_path" "$root_dir_name/$d/*" | egrep '.mp4|.MP4|.mov|.MOV|.mxf|.MXF' | sort -nr)
-			tmpSizes=$(unzip -Zl "$file_path" "$root_dir_name/$d/*" | egrep '.mp4|.MP4|.mov|.MOV|.mxf|.MXF' | awk '{print $4}' | sort -nr)
-			IFS=$'\n' read -rd '' -a arrFiles <<<"$tmpFiles"
-			IFS=$'\n' read -rd '' -a arrSizes <<<"$tmpSizes"
-
-			# count number of video
-			num_videos=${#arrFiles[@]}
-			if [ $num_videos -ge $NUM_VIDEO_THRESHOLD ];then
-					printf "${GRAY} Found %s video. Number video exceed threshold. Ignore this folder.${NC}\n"
-					continue
-			fi
-		fi
-	done
 }
 
 process_zip_file(){
@@ -804,6 +781,7 @@ main(){
 
 	if [ ! -d "$DELETED_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [DELETED_DIR][$DELETED_DIR]${NC}\n"; validate=1; fi
 	
+	echo "Script version : $_VERSION"
 	if [[ -d "$INPUT" ]]; then
 		echo "Input folder : [$INPUT]"
 		

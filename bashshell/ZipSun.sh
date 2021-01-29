@@ -3,10 +3,12 @@
 #Script Name    : ZipSun
 #Description    : This script loop through all zip file in sub-folder
 #                 Rename zip file by our rule and move file to target folder
-#Version        : 8.4
+#Version        : 8.6
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
+
+_VERSION="ZipSun - 8.6"
 
 # Set log level msg/dbg 
 _DEBUG="dbg"
@@ -116,6 +118,7 @@ function DEBUG()
 helpFunction()
 {
   echo ""
+  echo "Script version : $_VERSION"
   echo "Usage: $0 [option] folder_path [option] language"
   echo -e "Example : ./rename -c /home/jack/Video -l AR"
   echo -e "option:"
@@ -1123,6 +1126,7 @@ main(){
 
   if [ ! -d "$DELETED_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [DELETED_DIR][$DELETED_DIR]${NC}\n"; validate=1; fi
   
+  echo "Script version : $_VERSION"
   if [[ -d "$INPUT" ]]; then
     echo "Input folder : [$INPUT]"
     
