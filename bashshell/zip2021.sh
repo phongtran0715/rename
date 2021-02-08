@@ -1,5 +1,7 @@
 #!/bin/bash
 
+_VERSION="ZipFolder - 1.1"
+
 # Root directory needed to run zip command
 ROOT_PATH=(
     "/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus"
@@ -80,12 +82,13 @@ FALSE_DIR=0
 OVER_THRESHOLD_COUNT=0
 UNDER_THRESHOLD_COUNT=0
 TOTAL_ZIP_SIZE=0
+
 zip_execute() {
     if [ ! -d "$1" ]; then
         echo "Directory " $1 "DOES NOT exists."
         return
     fi
-    for f in $1*; do
+    for f in "$1/"*; do
         if [ -d "$f" ]; then
             TOTAL_DIR=$((TOTAL_DIR+1))
             DIR_NAME=$(basename -- "$f")
@@ -141,6 +144,7 @@ zip_execute() {
 # Main program                                                                 #
 ################################################################################
 main (){
+    echo "Script version : $_VERSION"
     for i in "${ROOT_PATH[@]}"
         do
            echo "===> Zipbot start work on directory : " $i
