@@ -1,6 +1,6 @@
 #!/bin/bash
 
-_VERSION="ZipFolder - 1.1"
+_VERSION="ZipFolder - 1.2"
 
 # Root directory needed to run zip command
 ROOT_PATH=(
@@ -76,11 +76,18 @@ convert_size(){
     printf %s\\n $1 | LC_NUMERIC=en_US numfmt --to=iec
 }
 
+validate_zip(){
+	echo -e "Validating zip file : $file"
+	local file_path="$1"
+	result=$(zip -T "$file_path") > /dev/null
+	echo "$result"
+}
 
 TOTAL_DIR=0
 FALSE_DIR=0
 OVER_THRESHOLD_COUNT=0
 UNDER_THRESHOLD_COUNT=0
+INVALID_ZIP=0
 TOTAL_ZIP_SIZE=0
 
 zip_execute() {
@@ -106,31 +113,37 @@ zip_execute() {
             zip -r $ZIP_FILE "$f" > /dev/null 2>&1
 
             if [ $? -eq 0 ]; then
-              FILE_SIZE=$(stat -c%s "$ZIP_FILE")
-              echo "Zip successful - Size : $(convert_size $FILE_SIZE)"
-              echo "["$(date +"%m-%d-%Y %T %Z")"] Finish compress" >> "$LOG_FILE"
-              echo "========== COMPRESS INFO END ==========" >> "$LOG_FILE"
-              echo >> "$LOG_FILE"
-              
-              echo "$1/$DIR_NAME, $STANDARD_DIR_NAME".zip, " $(($FILE_SIZE /1024 /1024)) MB" >> "$SUMMARY_LOG"
-              TOTAL_ZIP_SIZE=$(($TOTAL_ZIP_SIZE + $FILE_SIZE))
-
-              if [ $FILE_SIZE -ge $FILE_SIZE_THRESHOLD ]; then
-                OVER_THRESHOLD_COUNT=$((OVER_THRESHOLD_COUNT+1))
-                move_zip_file "$ZIP_FILE" "$OVER_THRESHOLD_PATH" "$LOG_FILE"
-                echo "Move file to $OVER_THRESHOLD_PATH"
-              else
-                UNDER_THRESHOLD_COUNT=$((UNDER_THRESHOLD_COUNT+1))
-                move_zip_file "$ZIP_FILE" "$UNDER_THRESHOLD_PATH" "$LOG_FILE"
-                echo "Move file to $UNDER_THRESHOLD_PATH"
-              fi
-
-              delete_folder "$1/$DIR_NAME" "$LOG_FILE"
+				FILE_SIZE=$(stat -c%s "$ZIP_FILE")
+				echo "Zip successful - Size : $(convert_size $FILE_SIZE)"
+				echo "Validating zip file"
+				is_valid=$(validate_zip "$ZIP_FILE")
+				if [[ $is_valid == *"OK"* ]];then
+	 				echo -e "Zip file is valid."
+	 				echo "$1/$DIR_NAME, $STANDARD_DIR_NAME".zip, " $(convert_size $TOTAL_ZIP_SIZE)" >> "$SUMMARY_LOG"
+	 				TOTAL_ZIP_SIZE=$(($TOTAL_ZIP_SIZE + $FILE_SIZE))
+	 				if [ $FILE_SIZE -ge $FILE_SIZE_THRESHOLD ]; then
+		   				OVER_THRESHOLD_COUNT=$((OVER_THRESHOLD_COUNT+1))
+		   				move_zip_file "$ZIP_FILE" "$OVER_THRESHOLD_PATH" "$LOG_FILE"
+		   				echo "Move file to $OVER_THRESHOLD_PATH"
+	 				else
+		   				UNDER_THRESHOLD_COUNT=$((UNDER_THRESHOLD_COUNT+1))
+		   				move_zip_file "$ZIP_FILE" "$UNDER_THRESHOLD_PATH" "$LOG_FILE"
+		   				echo "Move file to $UNDER_THRESHOLD_PATH"
+	 				fi
+				else
+	 				echo "Invalid zip file (corrupted or unreadable)"
+	 				INVALID_ZIP=$((INVALID_ZIP + 1))
+	 				move_fail_folder "$ZIP_FILE" "$FAIL_PATH" "$LOG_FILE"
+	 			fi
+				echo "["$(date +"%m-%d-%Y %T %Z")"] Finish compress" >> "$LOG_FILE"
+				echo "========== COMPRESS INFO END ==========" >> "$LOG_FILE"
+				echo >> "$LOG_FILE"
+				delete_folder "$1/$DIR_NAME" "$LOG_FILE"
             else
-              echo "========== COMPRESS INFO END ==========" >> "$LOG_FILE"
-              move_fail_folder "$1/$DIR_NAME" "$FAIL_PATH" "$LOG_FILE"
-              echo "$DIR_NAME, [FAILED]" >> "$SUMMARY_LOG"
-              FALSE_DIR=$((FALSE_DIR+1))
+            	echo "========== COMPRESS INFO END ==========" >> "$LOG_FILE"
+            	move_fail_folder "$1/$DIR_NAME" "$FAIL_PATH" "$LOG_FILE"
+            	echo "$DIR_NAME, [FAILED]" >> "$SUMMARY_LOG"
+            	FALSE_DIR=$((FALSE_DIR+1))
             fi
 
             echo "Log file : $LOG_FILE"
@@ -156,6 +169,7 @@ main (){
     echo "=============="
     echo "Total folder zipped : " $((TOTAL_DIR-FALSE_DIR))
     echo "Total zip file size : " $(convert_size $TOTAL_ZIP_SIZE)
+    echo "Corrupt file : " $INVALID_ZIP
     echo "Over threshold : " $OVER_THRESHOLD_COUNT
     echo "Under threshold : " $UNDER_THRESHOLD_COUNT
     echo "Bye!"
