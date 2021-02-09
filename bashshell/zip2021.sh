@@ -1,6 +1,6 @@
 #!/bin/bash
 
-_VERSION="ZipFolder - 1.2"
+_VERSION="ZipFolder - 1.3"
 
 # Root directory needed to run zip command
 ROOT_PATH=(
@@ -33,19 +33,22 @@ FILE_SIZE_THRESHOLD=$((50 * 1024 * 1024)) #50Mb
 [ -z "$OVER_THRESHOLD_PATH" ] && echo "Missing over Threshold folder path " && exit
 [ -z "$UNDER_THRESHOLD_PATH" ] && echo "Missing under Threshold folder path " && exit
 
-delete_folder() {
-    echo "========== DELETE INFO START ==========" >> "$2"
-    echo "["$(date +"%m-%d-%Y %T %Z")"] Start delete " >> "$2"
-    rm -rf "$1"
-    echo "["$(date +"%m-%d-%Y %T %Z")"] Finish delete" >> "$2"
-    echo "========== DELETE INFO END ==========" >> "$2"
-    echo  >> "$2"
+archive_folder() {
+    local origin_folder="$1"
+    local log_file="$2"
+    echo "========== ARCHIVE INFO START ==========" >> "$log_file"
+    echo "["$(date +"%m-%d-%Y %T %Z")"] Start archive folder : $origin_folder " >> "$log_file"
+    cp -rf "$origin_folder" "$ARCHIVE_PATH"
+    rm -rf "$origin_folder"
+    echo "["$(date +"%m-%d-%Y %T %Z")"] Finish archive" >> "$log_file"
+    echo "========== DELETE INFO END ==========" >> "$log_file"
+    echo  >> "$log_file"
 }
 
 move_zip_file(){
   echo "========== ZIP FILE MOVEMENT START ==========" >> "$3"
-  cp "$1" "$ARCHIVE_PATH"
-  echo "["$(date +"%m-%d-%Y %T %Z")"] Zipped file was copied to : ["$ARCHIVE_PATH"]" >> "$3"
+  # cp "$1" "$ARCHIVE_PATH"
+  # echo "["$(date +"%m-%d-%Y %T %Z")"] Zipped file was copied to : ["$ARCHIVE_PATH"]" >> "$3"
   mv "$1" "$2"
   echo "["$(date +"%m-%d-%Y %T %Z")"] Zipped file was moved to : ["$2"]" >> "$3"
   echo "========== ZIP FILE MOVEMENT END ==========" >> "$3"
@@ -118,7 +121,7 @@ zip_execute() {
 				echo "Validating zip file"
 				is_valid=$(validate_zip "$ZIP_FILE")
 				if [[ $is_valid == *"OK"* ]];then
-	 				echo -e "Zip file is valid."
+	 				echo -e "OK!Zip file is valid."
 	 				echo "$1/$DIR_NAME, $STANDARD_DIR_NAME".zip, " $(convert_size $TOTAL_ZIP_SIZE)" >> "$SUMMARY_LOG"
 	 				TOTAL_ZIP_SIZE=$(($TOTAL_ZIP_SIZE + $FILE_SIZE))
 	 				if [ $FILE_SIZE -ge $FILE_SIZE_THRESHOLD ]; then
@@ -138,7 +141,7 @@ zip_execute() {
 				echo "["$(date +"%m-%d-%Y %T %Z")"] Finish compress" >> "$LOG_FILE"
 				echo "========== COMPRESS INFO END ==========" >> "$LOG_FILE"
 				echo >> "$LOG_FILE"
-				delete_folder "$1/$DIR_NAME" "$LOG_FILE"
+				archive_folder "$1/$DIR_NAME/" "$LOG_FILE"
             else
             	echo "========== COMPRESS INFO END ==========" >> "$LOG_FILE"
             	move_fail_folder "$1/$DIR_NAME" "$FAIL_PATH" "$LOG_FILE"
@@ -177,4 +180,3 @@ main (){
 
 SUMMARY_LOG="$LOG_PATH/"$(date +%d%m%Y)".txt"
 main | while IFS= read -r line; do printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee "$SUMMARY_LOG"
-
