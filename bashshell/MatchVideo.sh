@@ -1,13 +1,15 @@
 #!/bin/bash
 ###################################################################
 #Script Name    : MatchingVideo
-#Description    : Finad all video in source folder, rename file (same ZipSun rule)
-#               moce file to target folder 
+#Description    : Find all video in source folder, rename file (same ZipSun rule)
+#               move file to target folder 
 #               Rename and move file to destination folder 
-#Version        : 1.7
+#Version        : 1.8
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
+
+_VERSION="MatchVideoScript - 1.8"
 
 # Log color code
 RED='\033[0;31m'
@@ -19,6 +21,9 @@ NC='\033[0m'
 NOT_MATCH=0
 MATCH_OLD_NAME=1
 MATCH_NEW_NAME=2
+
+# maximum file process each time
+MAX_FILE_PROCESS=1000
 
 # This is file contain all country code
 COUNTRY_FILE="countries.txt"
@@ -49,27 +54,27 @@ LOG_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/log/"
 
 # This  folder store deleted file
 DELETED_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/delete/"
-# DELETED_PATH="/mnt/log/delete/"
+# DELETED_PATH="/mnt/restore/VIDEO/_del/"
 
 # This folder store files that need to check by manual
 CHECK_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/check/"
-# CHECK_PATH="/mnt/log/check/"
+# CHECK_PATH="/mnt/restore/VIDEO/_check/"
 
 # Folder store mp4 video
 MP4_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mp4/"
-# MP4_PATH="/mnt/log/mp4/"
+# MP4_PATH="/mnt/restore/VIDEO/_mp4/"
 
 # Folder store mov and mxf video file
 MOV_MXF_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mxf/"
-# MOV_MXF_PATH="/mnt/log/mxf/"
+# MOV_MXF_PATH="/mnt/restore/VIDEO/_transcode/"
 
 # Folder sotre the video that contain VJ in file name
 VJ_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/vj/"
-# VJ_PATH="/mnt/log/vj/"
+# VJ_PATH="/mnt/restore/VIDEO/_vj/"
 
 # Folder store file that doesn't match any name
+# OTHER_PATH="/mnt/restore/VIDEO/_check/"
 OTHER_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/other/"
-# OTHER_PATH="/mnt/log/other/"
 
 #  Report file
 REPORT_FILE="$LOG_PATH/matched_video_report.csv"
@@ -100,6 +105,7 @@ gsuffix_path="/tmp/.suffix"$(date +%s)
 helpFunction()
 {
   echo ""
+  echo "Script version : $_VERSION"
   echo "Usage: $0 [option] folder_path [option] language"
   echo -e "Example : ./MatchVideo.sh -c /folder1 /folder2 ..."
   echo -e "option:"
@@ -155,14 +161,14 @@ is_suffix(){
 # if file doesn't exist -> return current date
 get_modification_date(){
 	local file="$1"
-	date=$(date +'%d%m%y')
+	file_date=$(date +'%d%m%y')
 	if [ -f "$file" ];then
 		epoch_time=$(stat -c "%Y" -- "$file")
 		if [ ! -z $epoch_time ]; then
-			date=$(date -d @$epoch_time +"%d%m%y");
+			file_date=$(date -d @$epoch_time +"%d%m%y");
 		fi
 	fi
-	echo "$date"
+	echo "$file_date"
 }
 
 check_position_replace(){
@@ -362,6 +368,11 @@ order_movie_element(){
   #append date
   if [ -z $date ]; then
 	date=$(get_modification_date "$file_path")
+  else
+  	year=${date: -2}
+	if [ $((year+0)) -gt 19 ];then
+		date=$(get_modification_date "$file_path")
+	fi
   fi
   name="$name-$date"
   #append suffix if type is movie
@@ -466,13 +477,22 @@ standardized_name(){
 get_target_folder_by_ext(){
 	local file="$1"
 	file_ext=$(echo "$file" | rev | cut -d'.' -f 1 | rev)
+	date=$(echo $(basename $file) | grep -oE '[0-9]{2}[0-9]{2}[0-9]{2}')
 	if [[ $file_ext == "mp4" ]] || [[ $file_ext == "MP4" ]];then
-		result="$MP4_PATH"
+	result="$MP4_PATH"
 	elif [[ $file_ext == "mov" ]] || [[ $file_ext == "MOV" ]];then
 		result="$MOV_MXF_PATH"
 	elif [[ $file_ext == "mxf" ]] || [[ $file_ext == "MXF" ]];then
 		result="$MOV_MXF_PATH"
 	else result="$OTHER_PATH";fi
+
+	if [ ! -z $date ];then
+		year=${date: -2}
+		if [ $((year+0)) -ge 13 ] && [ $((year+0)) -le 19 ];then
+			mkdir -p "$result/20"$year"/"
+			result="$result/20"$year"/"
+		fi
+	fi
 	echo $result
 }
 
@@ -569,7 +589,6 @@ dummy_test(){
 			file_ext=$(echo "$file" | rev | cut -d'.' -f 1 | rev)
 			if [[ $file_ext == "mp4" ]] || [[ $file_ext == "MP4" ]];then
 				MP4_FILE_COUNT=$((MP4_FILE_COUNT + 1))
-				echo $MP4_FILE_COUNT >> app.log
 				if [ mode == "RUN" ];then 
 					MP4_SIZE_COUNT=$(($MP4_SIZE_COUNT + $size))
 				fi
@@ -641,7 +660,7 @@ process_match_video(){
 
 	# Check file name contain valid keyword
 	if is_contain_process_keyword "$old_name"; then
-		new_name=$(standardized_name "$old_name")
+		new_name=$(standardized_name "$file_path")
 		echo "New name : $new_name"
 		if [[ $mode == "RUN" ]];then
 			if [[ "$(basename "$file_path")" != "$new_name" ]];then
@@ -661,7 +680,6 @@ process_match_video(){
 		file_ext=$(echo "$file" | rev | cut -d'.' -f 1 | rev)
 		if [[ $file_ext == "mp4" ]] || [[ $file_ext == "MP4" ]];then
 			MP4_FILE_COUNT=$((MP4_FILE_COUNT + 1))
-			echo $MP4_FILE_COUNT >> app.log
 			if [ mode == "RUN" ];then 
 				MP4_SIZE_COUNT=$(($MP4_SIZE_COUNT + $size))
 			fi
@@ -691,6 +709,7 @@ process_match_video(){
 }
 
 main(){
+	echo "Script version : $_VERSION"
 	if [ ! -f "$COUNTRY_FILE" ]; then
 		echo "Not found country file : " $COUNTRY_FILE
 		exit 1
@@ -732,7 +751,7 @@ main(){
 		echo "List input directory : $list_dir"
 		echo "-------------------------------"
 		echo "Finding video in folder ..."
-		video_files=$(find $list_dir -type f \( -iname \*.mov -o -iname \*.mxf -o -iname \*.mp4 \))
+		video_files=$(find $list_dir -type f \( -iname \*.mov -o -iname \*.mxf -o -iname \*.mp4 \) | head -n $MAX_FILE_PROCESS)
 		while IFS= read -r file; do
 			if [ ! -f "$file" ]; then
 				continue
@@ -769,7 +788,7 @@ main(){
 	echo
 	printf "%10s %-15s : $MXF_MOV_FILE_COUNT \n" "-" "MXF/MOV file"
 	printf "%10s %-15s : $(convert_size $MXF_MOV_SIZE_COUNT)\n" "-" "MXF/MOV size"
-	
+	echo
 	printf "%10s %-15s : $log_file \n" "-" "Log file"
 	printf "%10s %-15s : $REPORT_FILE \n" "-" "Report file"
 	printf "%10s %-15s : $NEW_VIDEO_NAME_FILE \n" "-" "Video new name file"
