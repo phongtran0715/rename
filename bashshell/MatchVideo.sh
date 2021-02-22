@@ -4,7 +4,7 @@
 #Description    : Find all video in source folder, rename file (same ZipSun rule)
 #               move file to target folder 
 #               Rename and move file to destination folder 
-#Version        : 1.8
+#Version        : 1.9
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
 ###################################################################
@@ -49,32 +49,25 @@ DELETE_KEYWORD=("RECORD" "-VO" "-CAM" "-TAKE" "TEST")
 WHITE_LIST_KEYWORD=("CAMBRIDGEXAMS" "CAMPDAVIDACCORDS" "WASHINGDISHESRECORD" "CONFEDERATESTATUE" "HOTTESTPEPPER" "VOICEWHEELCHAIR" "PROTEST")
 
 # Log folder store application running log, report log
-LOG_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/log/"
-# LOG_PATH="/mnt/log/"
+LOG_PATH="/mnt/log/"
 
 # This  folder store deleted file
-DELETED_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/delete/"
-# DELETED_PATH="/mnt/restore/VIDEO/_del/"
+DELETED_PATH="/mnt/restore/VIDEO/_del/"
 
 # This folder store files that need to check by manual
-CHECK_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/check/"
-# CHECK_PATH="/mnt/restore/VIDEO/_check/"
+CHECK_PATH="/mnt/restore/VIDEO/_check/"
 
 # Folder store mp4 video
-MP4_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mp4/"
-# MP4_PATH="/mnt/restore/VIDEO/_mp4/"
+MP4_PATH="/mnt/restore/VIDEO/_mp4/"
 
 # Folder store mov and mxf video file
-MOV_MXF_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/mxf/"
-# MOV_MXF_PATH="/mnt/restore/VIDEO/_transcode/"
+MOV_MXF_PATH="/mnt/restore/VIDEO/_transcode/"
 
 # Folder sotre the video that contain VJ in file name
-VJ_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/vj/"
-# VJ_PATH="/mnt/restore/VIDEO/_vj/"
+VJ_PATH="/mnt/restore/VIDEO/_vj/"
 
 # Folder store file that doesn't match any name
-# OTHER_PATH="/mnt/restore/VIDEO/_check/"
-OTHER_PATH="/home/jack/Documents/SourceCode/test_rename/match_video/other/"
+OTHER_PATH="/mnt/restore/VIDEO/_check/"
 
 #  Report file
 REPORT_FILE="$LOG_PATH/matched_video_report.csv"
@@ -479,20 +472,27 @@ get_target_folder_by_ext(){
 	file_ext=$(echo "$file" | rev | cut -d'.' -f 1 | rev)
 	date=$(echo $(basename $file) | grep -oE '[0-9]{2}[0-9]{2}[0-9]{2}')
 	if [[ $file_ext == "mp4" ]] || [[ $file_ext == "MP4" ]];then
-	result="$MP4_PATH"
+		result="$MP4_PATH"
+		if [ ! -z $date ];then
+			year=${date: -2}
+			if [ $((year+0)) -ge 13 ] && [ $((year+0)) -le 19 ];then
+				mkdir -p "$result/20"$year"/"
+				result="$result/20"$year"/"
+			fi
+		fi
 	elif [[ $file_ext == "mov" ]] || [[ $file_ext == "MOV" ]];then
 		result="$MOV_MXF_PATH"
+		if [ ! -z $date ];then
+			year=${date: -2}
+			if [ $((year+0)) -ge 13 ] && [ $((year+0)) -le 19 ];then
+				mkdir -p "$result/20"$year"/"
+				result="$result/20"$year"/"
+			fi
+		fi
 	elif [[ $file_ext == "mxf" ]] || [[ $file_ext == "MXF" ]];then
 		result="$MOV_MXF_PATH"
 	else result="$OTHER_PATH";fi
 
-	if [ ! -z $date ];then
-		year=${date: -2}
-		if [ $((year+0)) -ge 13 ] && [ $((year+0)) -le 19 ];then
-			mkdir -p "$result/20"$year"/"
-			result="$result/20"$year"/"
-		fi
-	fi
 	echo $result
 }
 
