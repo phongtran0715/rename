@@ -1,11 +1,10 @@
-
 #!/bin/bash
 ###################################################################
 #Script Name    : ZipMoon
-#Description    : 
-#                
+#Description    :
+#
 #Version        : 1.2
-#Notes          : None                                             
+#Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
@@ -38,7 +37,7 @@ DELETED_DIR="/mnt/restore/__DELETED/"
 DATABASE_FILE="/mnt/restore/zipdata_db.csv"
 
 #Video file size threshold
-THRESHOLD=$((50 * 1024 * 1024)) #50Gb
+THRESHOLD=$((50 * 1024 * 1024))         #50Gb
 DELETE_THRESHOLD=$((100 * 1024 * 1024)) #50Mb
 
 declare -A ARR_VIDEOS
@@ -50,13 +49,11 @@ gvideo_name_path="/tmp/.gvideo_name"
 TOTAL_DEL_FILE=0
 TOTAL_DEL_SIZE=0
 
-function DEBUG()
-{
+function DEBUG() {
   [ "$_DEBUG" == "on" ] && $@ || :
 }
 
-helpFunction()
-{
+helpFunction() {
   echo ""
   echo "Usage: $0 [option] folder_path [option] language"
   echo -e "Example : ./ZipMoonRC2.sh -c /home/jack/Video -l AR"
@@ -67,26 +64,28 @@ helpFunction()
   exit 1
 }
 
-while getopts "c:x:l:" opt
-do
-   case "$opt" in
-      c ) INPUT="$OPTARG"
-          mode="TEST";;
-      x ) INPUT="$OPTARG"
-          mode="RUN";;
-      l ) default_lang="$OPTARG";;
-      ? ) helpFunction ;;
-   esac
+while getopts "c:x:l:" opt; do
+  case "$opt" in
+  c)
+    INPUT="$OPTARG"
+    mode="TEST"
+    ;;
+  x)
+    INPUT="$OPTARG"
+    mode="RUN"
+    ;;
+  l) default_lang="$OPTARG" ;;
+  ?) helpFunction ;;
+  esac
 done
 
 # Print helpFunction in case parameters are empty
-if [ -z "$INPUT" ]
-then
-   echo "Some or all of the parameters are empty";
-   helpFunction
+if [ -z "$INPUT" ]; then
+  echo "Some or all of the parameters are empty"
+  helpFunction
 fi
 
-insert_db(){
+insert_db() {
   local old_name="$1"
   local new_name="$2"
   local size="$3"
@@ -94,82 +93,88 @@ insert_db(){
   new_record="$1","$2","$3","$4"
   compare_str="$1","$2","$3"
   match=$(cat $DATABASE_FILE | grep "$compare_str")
-  if [ ! -z "$match" ];then
+  if [ ! -z "$match" ]; then
     return # found
   else
     #not found , insert to db
-    echo "$new_record" >> "$DATABASE_FILE"
+    echo "$new_record" >>"$DATABASE_FILE"
   fi
 }
 
-is_suffix(){
+is_suffix() {
   local data="$1"
-  for i in "${!SUFFIX_LISTS[@]}";do
-    if [[ "$data" == "${SUFFIX_LISTS[$i]}" ]];then
+  for i in "${!SUFFIX_LISTS[@]}"; do
+    if [[ "$data" == "${SUFFIX_LISTS[$i]}" ]]; then
       return 0
     fi
   done
   return 1 #false
 }
 
-list_contain(){
+list_contain() {
   item=$1
   shift
   arr=("${@}")
   for key in ${arr[@]}; do
-    if [[ $key == $item ]];then
-      return 0; #found
+    if [[ $key == $item ]]; then
+      return 0 #found
     fi
   done
   return 1 # not found
 }
 
-convert_size(){
+convert_size() {
   printf %s\\n $1 | LC_NUMERIC=en_US numfmt --to=iec
 }
 
-get_target_folder(){
+get_target_folder() {
   lang=$1
   size=$2
-  if [ $size -gt $THRESHOLD ];then
-    if [[ $lang == "AR" ]];then result="$AR_OVER_DIR";
-    elif [[ $lang == "EN" ]];then result="$EN_OVER_DIR";
-    elif [[ $lang == "ES" ]];then result="$ES_OVER_DIR";
-    elif [[ $lang == "FR" ]];then result="$FR_OVER_DIR";
-    else result="$OTHER_DIR";fi
+  if [ $size -gt $THRESHOLD ]; then
+    if [[ $lang == "AR" ]]; then
+      result="$AR_OVER_DIR"
+    elif [[ $lang == "EN" ]]; then
+      result="$EN_OVER_DIR"
+    elif [[ $lang == "ES" ]]; then
+      result="$ES_OVER_DIR"
+    elif [[ $lang == "FR" ]]; then
+      result="$FR_OVER_DIR"
+    else result="$OTHER_DIR"; fi
   else
-    if [[ $lang == "AR" ]];then result="$AR_UNDER_DIR";
-    elif [[ $lang == "EN" ]];then result="$EN_UNDER_DIR";
-    elif [[ $lang == "ES" ]];then result="$ES_UNDER_DIR";
-    elif [[ $lang == "FR" ]];then result="$FR_UNDER_DIR";
-    else result="$OTHER_DIR";fi
+    if [[ $lang == "AR" ]]; then
+      result="$AR_UNDER_DIR"
+    elif [[ $lang == "EN" ]]; then
+      result="$EN_UNDER_DIR"
+    elif [[ $lang == "ES" ]]; then
+      result="$ES_UNDER_DIR"
+    elif [[ $lang == "FR" ]]; then
+      result="$FR_UNDER_DIR"
+    else result="$OTHER_DIR"; fi
   fi
   echo $result
 }
 
-check_position_replace(){
+check_position_replace() {
   local name="$1"
   local search_str="$2"
   local replace_str="$3"
   shift
   result=$(echo $name | grep -b -o $search_str)
-  if [ $? -eq 0 ]
-  then
+  if [ $? -eq 0 ]; then
     index=$(echo $result | cut -f1 -d":")
-    if [ $index -eq 0 ]
-    then
+    if [ $index -eq 0 ]; then
       ofset=${#search_str}
-      length=$((${#name}-$ofset))
+      length=$((${#name} - $ofset))
       name=$replace_str${name:$ofset:$length}
     fi
   fi
   echo $name
 }
 
-remove_blacklist_keyword(){
+remove_blacklist_keyword() {
   local name="$1"
   shift
-  for i in "${NEGLECTS_KEYWORD[@]}";do
+  for i in "${NEGLECTS_KEYWORD[@]}"; do
     name=${name//"$i"/""}
   done
   #replace some specific key
@@ -193,53 +198,52 @@ remove_blacklist_keyword(){
   echo $name
 }
 
-process_episode(){
+process_episode() {
   name=$1
   match=$(echo $name | grep -oE 'S[0-9]{1,}X[0-9]{1,}')
-  if [ ! -z "$match" ]; then 
+  if [ ! -z "$match" ]; then
     name=${name/$match/"_"$match"_"}
-    echo "SH-" > "$gteam_path"
+    echo "SH-" >"$gteam_path"
     echo $name
     return
   fi
   match=$(echo $name | grep -oE '[0-9]{1,}X[0-9]{1,}')
-  if [ ! -z "$match" ]; then 
+  if [ ! -z "$match" ]; then
     name=${name/$match/"_S"$match"_"}
-    echo "SH-" > "$gteam_path"
+    echo "SH-" >"$gteam_path"
     echo $name
     return
   fi
   echo $name
 }
 
-correct_desc_info(){
+correct_desc_info() {
   local desc=$1
   result=""
   country=""
-  IFS='-' read -ra arr <<< "$desc"
+  IFS='-' read -ra arr <<<"$desc"
   #find country
-  while IFS= read -r line
-  do
+  while IFS= read -r line; do
     line=$(echo ${line^^})
-    for i in "${!arr[@]}";do
-      if [[ "${arr[$i]}" == "$line" ]];then
+    for i in "${!arr[@]}"; do
+      if [[ "${arr[$i]}" == "$line" ]]; then
         country=$line
         unset 'arr[$i]'
         break
       fi
     done
-    if [ ! -z "$country" ];then
+    if [ ! -z "$country" ]; then
       break
     fi
-  done < "$COUNTRY_FILE"
+  done <"$COUNTRY_FILE"
 
-  for i in "${!arr[@]}";do
+  for i in "${!arr[@]}"; do
     value="${arr[$i]}"
-    if [ ${#value} -lt 2 ];then continue; fi
-    result+="$value";
+    if [ ${#value} -lt 2 ]; then continue; fi
+    result+="$value"
   done
 
-  if [ ! -z "$country" ] && [ ! -z "$result" ];then
+  if [ ! -z "$country" ] && [ ! -z "$result" ]; then
     result=$country"_"$result
   else
     result="$country$result"
@@ -247,7 +251,7 @@ correct_desc_info(){
   echo $result
 }
 
-order_movie_element(){
+order_movie_element() {
   local old_name="$1"
   local name="$2"
   local path="$3"
@@ -257,14 +261,14 @@ order_movie_element(){
   date=""
   #get date here
   match=$(echo $name | grep -oE '[0-9]{2}[0-9]{2}[0-9]{4}')
-  if [ -z "$match" ];then
+  if [ -z "$match" ]; then
     match=$(echo $name | grep -oE '[0-9]{2}[0-9]{2}[0-9]{2}')
-    if [ ! -z "$match" ] && [ ${#match} -eq 6 ];then
-        date=$(echo $match | sed 's/[^0-9]//g')
-        name=${name/"$match"/""}
+    if [ ! -z "$match" ] && [ ${#match} -eq 6 ]; then
+      date=$(echo $match | sed 's/[^0-9]//g')
+      name=${name/"$match"/""}
     fi
   else
-    if [ ${#match} -eq 8 ];then
+    if [ ${#match} -eq 8 ]; then
       date=$(echo $match | sed 's/[^0-9]//g')
       date=${date:0:4}${date:6:2}
       name=${name/"$match"/""}
@@ -272,11 +276,11 @@ order_movie_element(){
   fi
 
   #correct date
-  if [ ! -z "$date" ];then
+  if [ ! -z "$date" ]; then
     dd=${date:0:2}
     mm=${date:2:2}
     yy=${date:4:2}
-    if [ $mm -gt 12 ];then date=$mm$dd$yy; fi
+    if [ $mm -gt 12 ]; then date=$mm$dd$yy; fi
   else
     full_path=$path"/$old_name"
     if [[ -f "$full_path" ]]; then
@@ -284,11 +288,11 @@ order_movie_element(){
     fi
     if [ ! -z $epoch_time ]; then date=$(date -d @$epoch_time +"%d%m%y"); fi
   fi
-  
-  IFS='-' read -ra arr <<< "$name"
+
+  IFS='-' read -ra arr <<<"$name"
   count=${#arr[@]}
   tmpSuffix=""
-  for i in "${!arr[@]}";do
+  for i in "${!arr[@]}"; do
     value=${arr[$i]}
     #get language
     if [ ${#value} -eq 2 ] && [[ "${LANGUSGES[@]}" =~ "$value" ]]; then
@@ -299,56 +303,58 @@ order_movie_element(){
     if [ ${#value} -eq 2 ] && [[ "${TEAMS[@]}" =~ $value ]]; then
       team=$value"-"
       continue
-    elif [[ $value == "VJ" ]] || [[ $value == "PL" ]];then
+    elif [[ $value == "VJ" ]] || [[ $value == "PL" ]]; then
       team="NG-"
       continue
     fi
     # remove repeated character (XX)
     match=$(echo $value | grep -oE '(X)\1{1,}')
-    if [ ! -z $match ];then value=${value//"$match"/""}; fi
+    if [ ! -z $match ]; then value=${value//"$match"/""}; fi
     # get suffix, only process suffix with movie type
-    if is_suffix $value;then
-      if [ -z $tmpSuffix ];then
+    if is_suffix $value; then
+      if [ -z $tmpSuffix ]; then
         tmpSuffix="$value"
       else
         tmpSuffix=$tmpSuffix-$value
       fi
     else
-      if [ ! -z $value ];then desc+="$value-"; fi
+      if [ ! -z $value ]; then desc+="$value-"; fi
     fi
   done
-  echo "$tmpSuffix" > "$gsuffix_path";
+  echo "$tmpSuffix" >"$gsuffix_path"
 
-  if [ -z "$team" ];then team="RT-"; fi
-  read gteam < "$gteam_path"
-  if [ ! -z $gteam ];then team=$gteam; fi
+  if [ -z "$team" ]; then team="RT-"; fi
+  read gteam <"$gteam_path"
+  if [ ! -z $gteam ]; then team=$gteam; fi
 
   #remove "-" at the end of desc
-  index=$((${#desc} -1))
-  if [ $index -gt 0 ];then desc=${desc:0:index}; fi
+  index=$((${#desc} - 1))
+  if [ $index -gt 0 ]; then desc=${desc:0:index}; fi
   desc=$(correct_desc_info "$desc")
 
-  if [ -z "$lang" ] && [ ! -z "$default_lang" ];then
+  if [ -z "$lang" ] && [ ! -z "$default_lang" ]; then
     lang="$default_lang-"
   fi
 
-  if [ -z "$lang" ];then name="$team$desc"
-  else name="$lang$team$desc";fi
-  echo "$name" > "$gvideo_name_path"
+  if [ -z "$lang" ]; then
+    name="$team$desc"
+  else name="$lang$team$desc"; fi
+  echo "$name" >"$gvideo_name_path"
 
   #append date
   if [ -z $date ]; then date=$(date +'%m%d%y'); fi
   name="$name-$date"
   #append suffix if type is movie
-  if [ ! -z $tmpSuffix ];then name=$name-$tmpSuffix
-  else name=$name"-RAW";fi
+  if [ ! -z $tmpSuffix ]; then
+    name=$name-$tmpSuffix
+  else name=$name"-RAW"; fi
   echo $name
 }
 
-standardized_name(){
+standardized_name() {
   local file_path="$1"
-  echo "" > "$gsuffix_path"
-  echo "" > "$gteam_path"
+  echo "" >"$gsuffix_path"
+  echo "" >"$gteam_path"
 
   DEBUG echo "000 : $file_path"
   local old_name=$(basename "$file_path")
@@ -361,7 +367,7 @@ standardized_name(){
   fi
   DEBUG echo "001 : $name"
 
-  # convert from UTF-8 to ASCII 
+  # convert from UTF-8 to ASCII
   name=$(echo "$name" | iconv -f UTF-8 -t ASCII//TRANSLIT)
 
   #Replace space by -
@@ -375,19 +381,19 @@ standardized_name(){
   name=$(echo ${name^^})
 
   match=$(echo $name | grep -o 'SALEET')
-  if [ ! -z "$match" ];then
+  if [ ! -z "$match" ]; then
     name=${name/$match/""}
-    echo "SH-SA_" > "$gteam_path"
+    echo "SH-SA_" >"$gteam_path"
   fi
 
   match=$(echo $name | grep -o 'REEM')
-  if [ ! -z "$match" ];then
+  if [ ! -z "$match" ]; then
     name=${name/$match/""}
-    echo "SH-RM_" > "$gteam_path"
+    echo "SH-RM_" >"$gteam_path"
   fi
 
   match=$(echo $name | grep -oE '_[0-9]{6}')
-  if [ ! -z "$match" ];then
+  if [ ! -z "$match" ]; then
     new_str="-"${match:1}
     name=${name/$match/$new_str}
   fi
@@ -409,11 +415,12 @@ standardized_name(){
   #Remove duplicate chracter (_, -)
   tmp_name=""
   pc=""
-  for (( i=$((${#name} -1)); i>=0; i-- )); do
-  # for (( i=0; i<${#name}; i++ )); do
+  for ((i = $((${#name} - 1)); i >= 0; i--)); do
+    # for (( i=0; i<${#name}; i++ )); do
     c="${name:$i:1}"
-    if [[ $c == "_" ]] || [[ $c == "-" ]];then
-      if [[ $pc == "_" ]] || [[ $pc == "-" ]]; then continue;
+    if [[ $c == "_" ]] || [[ $c == "-" ]]; then
+      if [[ $pc == "_" ]] || [[ $pc == "-" ]]; then
+        continue
       else tmp_name=$c$tmp_name; fi
     else tmp_name=$c$tmp_name; fi
     pc=$c
@@ -422,17 +429,17 @@ standardized_name(){
   echo $name
 }
 
-db_check(){
+db_check() {
   local file_name="$1"
   match=$(cat "$DATABASE_FILE" | cut -f2 -d"," | grep "$file_name")
-  if [ ! -z "$match" ];then
+  if [ ! -z "$match" ]; then
     return 0 #found
   else
     return 1 # not found
   fi
 }
 
-check_video_file(){
+check_video_file() {
   local file_path="$1"
   local log_path="$2"
   local index=$3
@@ -443,18 +450,18 @@ check_video_file(){
   new_name=$(standardized_name "$file_path")
   old_no_ext=$(echo $old_name | cut -f 1 -d '.')
   new_no_ext=$(echo $new_name | cut -f 1 -d '.')
-  if [[ -f "$file_path" ]];then fileSize=$(stat -c%s "$file_path"); fi
+  if [[ -f "$file_path" ]]; then fileSize=$(stat -c%s "$file_path"); fi
 
   # check file name is matched with origin file name in DB or not
-  read video_name < "$gvideo_name_path"
-  if ! db_check "$video_name";then
+  read video_name <"$gvideo_name_path"
+  if ! db_check "$video_name"; then
     printf "${YELLOW}($index)File\t: %-50s - %s${NC}\n" "$old_name" "$new_name"
     printf "${YELLOW}File not match DB - Moved to : $OTHER_DIR${NC}\n"
     return
   fi
 
   # check new zip file existed or not
-  if list_contain "$new_no_ext" "${!ARR_VIDEOS[@]}";then
+  if list_contain "$new_no_ext" "${!ARR_VIDEOS[@]}"; then
     #found
     printf "${RED}($index)File\t: %-50s - %s${NC}\n" "$old_name" "$new_no_ext"
     printf "${RED}File existed (*Deleted* - Size : %s )${NC}\n" "$(convert_size $fileSize)"
@@ -463,11 +470,11 @@ check_video_file(){
     return
   fi
   # Check suffix
-  read gsuffix < "$gsuffix_path"
-  if [ -z "$gsuffix" ];then
+  read gsuffix <"$gsuffix_path"
+  if [ -z "$gsuffix" ]; then
     printf "${GRAY}($count) \t: %-50s -> Invalid suffix. Ignored!${NC}\n" "$old_no_ext"
-    count=$(($count +1))
-    continue;
+    count=$(($count + 1))
+    continue
   fi
   printf "($index)File\t: %-50s -> %-50s\n" "$old_no_ext" "$new_no_ext"
   ARR_VIDEOS+=(["$new_no_ext"]=fileSize)
@@ -476,10 +483,10 @@ check_video_file(){
   # move to target folder
   target_folder=$(get_target_folder ${new_no_ext:0:2} $fileSize)
   echo -e "Size\t:" "$(convert_size $fileSize)" " - Moved to : $target_folder"
-  echo "$old_no_ext,$new_no_ext,$(convert_size $fileSize),$target_folder"  >> $log_path
+  echo "$old_no_ext,$new_no_ext,$(convert_size $fileSize),$target_folder" >>$log_path
 }
 
-process_video_file(){
+process_video_file() {
   local file_path="$1"
   local index=$2
   count=1
@@ -493,8 +500,8 @@ process_video_file(){
   dir_name=$(dirname "$file_path")
 
   # check file name is matched with origin file name in DB or not
-  read video_name < "$gvideo_name_path"
-  if ! db_check "$video_name";then
+  read video_name <"$gvideo_name_path"
+  if ! db_check "$video_name"; then
     printf "${YELLOW}($index)File\t: %-50s - %s${NC}\n" "$old_name" "$new_name"
     printf "${YELLOW}File not match DB - Moved to : $OTHER_DIR${NC}\n"
     mv -f "$file_path" "$OTHER_DIR"
@@ -502,7 +509,7 @@ process_video_file(){
   fi
 
   # check new file existed or not
-  if list_contain "$new_no_ext" "${!ARR_VIDEOS[@]}";then
+  if list_contain "$new_no_ext" "${!ARR_VIDEOS[@]}"; then
     #found
     printf "${RED}($index)File\t: %-50s - %s${NC}\n" "$old_name" "$new_no_ext"
     printf "${RED}File existed (*Deleted* - Size : %s )${NC}\n" "$(convert_size $fileSize)"
@@ -514,7 +521,7 @@ process_video_file(){
     #not found
     printf "($index)File\t: %-50s  -> %-50s\n" "$old_no_ext" "$new_no_ext"
     # Rename video file
-    if [[ "$old_name" != "$new_name" ]];then
+    if [[ "$old_name" != "$new_name" ]]; then
       mv -f "$dir_name/$old_name" "$dir_name/$new_name"
     fi
     ARR_VIDEOS+=(["$new_no_ext"]=fileSize)
@@ -523,17 +530,17 @@ process_video_file(){
   # move to target folder
   target_folder=$(get_target_folder ${new_no_ext:0:2} $fileSize)
   echo -e "Size\t: " "$(convert_size $fileSize)" " - Moved to : $target_folder"
-  if [ ! -f "$target_folder/$new_name" ];then
+  if [ ! -f "$target_folder/$new_name" ]; then
     mv -f "$dir_name/$new_name" "$target_folder"
-    count=$(($count +1))
+    count=$(($count + 1))
   else
     return
   fi
 }
 
-main(){
+main() {
   total=0
-  echo "" > invalid_name.txt
+  echo "" >invalid_name.txt
   if [ ! -f "$COUNTRY_FILE" ]; then
     printf "${YELLOW}Not found country file : $COUNTRY_FILE${NC}\n"
     exit 1
@@ -544,45 +551,75 @@ main(){
   fi
 
   validate=0
-  if [ ! -d "$AR_OVER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [AR_OVER_DIR][$AR_OVER_DIR]${NC}\n"; validate=1; fi
-  if [ ! -d "$EN_OVER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [EN_OVER_DIR][$EN_OVER_DIR]${NC}\n"; validate=1; fi
-  if [ ! -d "$ES_OVER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [ES_OVER_DIR][$ES_OVER_DIR]${NC}\n"; validate=1; fi
-  if [ ! -d "$FR_OVER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [FR_OVER_DIR][$FR_OVER_DIR]${NC}\n"; validate=1; fi
+  if [ ! -d "$AR_OVER_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [AR_OVER_DIR][$AR_OVER_DIR]${NC}\n"
+    validate=1
+  fi
+  if [ ! -d "$EN_OVER_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [EN_OVER_DIR][$EN_OVER_DIR]${NC}\n"
+    validate=1
+  fi
+  if [ ! -d "$ES_OVER_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [ES_OVER_DIR][$ES_OVER_DIR]${NC}\n"
+    validate=1
+  fi
+  if [ ! -d "$FR_OVER_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [FR_OVER_DIR][$FR_OVER_DIR]${NC}\n"
+    validate=1
+  fi
 
-  if [ ! -d "$AR_UNDER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [AR_UNDER_DIR][$AR_UNDER_DIR]${NC}\n"; validate=1; fi
-  if [ ! -d "$EN_UNDER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [EN_UNDER_DIR][$EN_UNDER_DIR]${NC}\n"; validate=1; fi
-  if [ ! -d "$ES_UNDER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [ES_UNDER_DIR][$ES_UNDER_DIR]${NC}\n"; validate=1; fi
-  if [ ! -d "$FR_UNDER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [FR_UNDER_DIR][$FR_UNDER_DIR]${NC}\n"; validate=1; fi
+  if [ ! -d "$AR_UNDER_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [AR_UNDER_DIR][$AR_UNDER_DIR]${NC}\n"
+    validate=1
+  fi
+  if [ ! -d "$EN_UNDER_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [EN_UNDER_DIR][$EN_UNDER_DIR]${NC}\n"
+    validate=1
+  fi
+  if [ ! -d "$ES_UNDER_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [ES_UNDER_DIR][$ES_UNDER_DIR]${NC}\n"
+    validate=1
+  fi
+  if [ ! -d "$FR_UNDER_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [FR_UNDER_DIR][$FR_UNDER_DIR]${NC}\n"
+    validate=1
+  fi
 
-  if [ ! -d "$DELETED_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [DELETED_DIR][$DELETED_DIR]${NC}\n"; validate=1; fi
-  if [ ! -d "$OTHER_DIR" ]; then printf "${YELLOW}Warning! Directory doesn't existed [OTHER_DIR][$OTHER_DIR]${NC}\n"; validate=1; fi
-  
+  if [ ! -d "$DELETED_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [DELETED_DIR][$DELETED_DIR]${NC}\n"
+    validate=1
+  fi
+  if [ ! -d "$OTHER_DIR" ]; then
+    printf "${YELLOW}Warning! Directory doesn't existed [OTHER_DIR][$OTHER_DIR]${NC}\n"
+    validate=1
+  fi
+
   if [[ -d "$INPUT" ]]; then
     # directory
     log_path=$(echo $(dirname "$INPUT"))"/"$(echo $(basename "$INPUT")).csv
-    if [[ $mode == "TEST" ]];then 
-      echo "OLD VIDEO NAME,NEW VIDEO NAME,VIDEO SIZE,MOVED TO" > $log_path;
+    if [[ $mode == "TEST" ]]; then
+      echo "OLD VIDEO NAME,NEW VIDEO NAME,VIDEO SIZE,MOVED TO" >$log_path
     fi
     #list all file sort by size , exclude folder
-    files=$(ls -lSQ "$INPUT" |  grep -v '^d' | cut -f2 -d "\"")
+    files=$(ls -lSQ "$INPUT" | grep -v '^d' | cut -f2 -d "\"")
     while read file; do
       file="$INPUT/$file"
-      if [ ! -f "$file" ];then continue;fi
-      total=$((total+1))
-      if [[ $mode == "TEST" ]];then
+      if [ ! -f "$file" ]; then continue; fi
+      total=$((total + 1))
+      if [[ $mode == "TEST" ]]; then
         check_video_file "$file" "$log_path" $total
       else
         process_video_file "$file" $total
       fi
       echo
-    done <<< "$files"
+    done <<<"$files"
   else
     echo "$INPUT is not valid"
     exit 1
   fi
 
   echo "=============="
-  if [[ $mode == "TEST" ]];then
+  if [[ $mode == "TEST" ]]; then
     echo "Log file info:"
     printf "%10s %-15s : $log_path \n" "-" "Full log"
     echo
