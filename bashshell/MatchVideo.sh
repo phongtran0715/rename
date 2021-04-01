@@ -4,12 +4,12 @@
 #Description    : Find all video in source folder, rename file (same ZipSun rule)
 #               move file to target folder
 #               Rename and move file to destination folder
-#Version        : 1.9
+#Version        : 2.0
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="MatchVideoScript - 1.8"
+_VERSION="MatchVideoScript - 2.0"
 
 # Log color code
 RED='\033[0;31m'
@@ -49,7 +49,7 @@ DELETE_KEYWORD=("RECORD" "-VO" "-CAM" "-TAKE" "TEST")
 WHITE_LIST_KEYWORD=("CAMBRIDGEXAMS" "CAMPDAVIDACCORDS" "WASHINGDISHESRECORD" "CONFEDERATESTATUE" "HOTTESTPEPPER" "VOICEWHEELCHAIR" "PROTEST")
 
 # Log folder store application running log, report log
-LOG_PATH="/mnt/log/"
+LOG_PATH="/mnt/ajplus/Admin/"
 
 # This  folder store deleted file
 DELETED_PATH="/mnt/restore/VIDEO/_del/"
@@ -62,9 +62,6 @@ MP4_PATH="/mnt/restore/VIDEO/_mp4/"
 
 # Folder store mov and mxf video file
 MOV_MXF_PATH="/mnt/restore/VIDEO/_transcode/"
-
-# Folder sotre the video that contain VJ in file name
-VJ_PATH="/mnt/restore/VIDEO/_vj/"
 
 # Folder store file that doesn't match any name
 OTHER_PATH="/mnt/restore/VIDEO/_check/"
@@ -85,9 +82,6 @@ MXF_MOV_SIZE_COUNT=0
 DELETE_FILE_COUNT=0
 DELETE_SIZE_COUNT=0
 
-VJ_FILE_COUNT=0
-VJ_SIZE_COUNT=0
-
 CHECK_FILE_COUNT=0
 CHECK_SIZE_COUNT=0
 
@@ -101,8 +95,8 @@ helpFunction() {
 	echo "Usage: $0 [option] folder_path [option] language"
 	echo -e "Example : ./MatchVideo.sh -c /folder1 /folder2 ..."
 	echo -e "option:"
-	echo -e "\t-c Check corrupt zip file"
-	echo -e "\t-x Repair corrupt zip file"
+	echo -e "\t-c Run the scrip in test mode"
+	echo -e "\t-x Run the script in execute mode"
 	echo -e "\t-d Manual test with input text file"
 	echo -e "\t-l Set language for file name"
 	exit 1
@@ -560,23 +554,10 @@ dummy_test() {
 				echo "Found deleted keyword"
 				echo "Move to : $DELETED_PATH"
 				echo "$line, - ,0, $DELETED_PATH" >>"$REPORT_FILE"
-				echo "---------------------"
 				echo
 				DELETE_FILE_COUNT=$(($DELETE_FILE_COUNT + 1))
 				continue
 			fi
-		fi
-
-		# check VJ keyword
-		match=$(echo $old_name | grep -o "VJ")
-		if [ ! -z "$match" ]; then
-			echo "Found VJ keyword"
-			echo "Move to : $VJ_PATH"
-			echo "$line, - ,0, $VJ_PATH" >>"$REPORT_FILE"
-			echo "---------------------"
-			echo
-			VJ_FILE_COUNT=$(($VJ_FILE_COUNT + 1))
-			continue
 		fi
 
 		# Check file name contain valid keyword
@@ -641,22 +622,6 @@ process_match_video() {
 			DELETE_SIZE_COUNT=$(($DELETE_SIZE_COUNT + $size))
 			return
 		fi
-	fi
-
-	# check VJ keyword
-	match=$(echo $old_name | grep -o "VJ")
-	if [ ! -z "$match" ]; then
-		echo "Found VJ keyword"
-		echo "Move to : $VJ_PATH"
-		if [[ $mode == "RUN" ]]; then
-			mv -f "$file_path" "$VJ_PATH"
-		fi
-		echo "$old_name, - ,$(convert_size "$size"), $VJ_PATH" >>"$REPORT_FILE"
-		echo "---------------------"
-		echo
-		VJ_FILE_COUNT=$(($VJ_FILE_COUNT + 1))
-		VJ_SIZE_COUNT=$(($VJ_SIZE_COUNT + $size))
-		return
 	fi
 
 	# Check file name contain valid keyword
@@ -738,10 +703,6 @@ main() {
 		printf "${YELLOW}Warning! Directory doesn't existed [DELETED_PATH][$DELETED_PATH]${NC}\n"
 		validate=1
 	fi
-	if [ ! -d "$VJ_PATH" ]; then
-		printf "${YELLOW}Warning! Directory doesn't existed [VJ_PATH][$VJ_PATH]${NC}\n"
-		validate=1
-	fi
 	if [ ! -d "$CHECK_PATH" ]; then
 		printf "${YELLOW}Warning! Directory doesn't existed [CHECK_PATH][$CHECK_PATH]${NC}\n"
 		validate=1
@@ -798,9 +759,6 @@ main() {
 	echo
 	printf "%10s %-15s : $DELETE_FILE_COUNT \n" "-" "Delete file"
 	printf "%10s %-15s : $(convert_size $DELETE_SIZE_COUNT)\n" "-" "Delete size"
-	echo
-	printf "%10s %-15s : $VJ_FILE_COUNT \n" "-" "VJ file"
-	printf "%10s %-15s : $(convert_size $VJ_SIZE_COUNT)\n" "-" "VJ size"
 	echo
 	printf "%10s %-15s : $CHECK_FILE_COUNT \n" "-" "Check file"
 	printf "%10s %-15s : $(convert_size $CHECK_SIZE_COUNT)\n" "-" "Check size"
