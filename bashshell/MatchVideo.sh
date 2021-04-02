@@ -63,6 +63,10 @@ MP4_PATH="/mnt/restore/VIDEO/_mp4/"
 # Folder store mov and mxf video file
 MOV_MXF_PATH="/mnt/restore/VIDEO/_transcode/"
 
+# Folder store processed file and filesize > 1.5G
+XL_FILE_THRESHOLD=$((15 * 1024 * 1024 * 1024 /10 )) #150Gb
+PROCESSED_XL_FILE="/mnt/restore/VIDEO/xl/"
+
 # Folder store file that doesn't match any name
 OTHER_PATH="/mnt/restore/VIDEO/_check/"
 
@@ -88,6 +92,12 @@ CHECK_SIZE_COUNT=0
 gline_path="/tmp/.line_"$(date +%s)
 gteam_path="/tmp/.team_"$(date +%s)
 gsuffix_path="/tmp/.suffix"$(date +%s)
+
+#This is database csv file
+DATABASE_FULL="/mnt/restore/full_db.csv"
+DATABASE_AR="/mnt/restore/ar_db.csv"
+DATABASE_EN="/mnt/restore/en_db.csv"
+DATABASE_ES="/mnt/restore/es_db.csv"
 
 helpFunction() {
 	echo ""
@@ -125,6 +135,51 @@ while getopts "d:c:x:l:" opt; do
 	esac
 done
 shift $((OPTIND - 1))
+
+get_db_file() {
+	local name="$1"
+	lang=$(echo "$name" | cut -f1 -d"-")
+	if [[ $lang == "AR" ]]; then
+		result="$DATABASE_AR"
+	elif [[ $lang == "EN" ]]; then
+		result="$DATABASE_EN"
+	elif [[ $lang == "ES" ]]; then
+		result="$DATABASE_ES"
+	else
+		result=""
+	fi
+	echo $result
+}
+
+insert_db() {
+  local old_name="$1"
+  local new_name="$2"
+  local size="$3"
+  local path="$4"
+  new_record="$1","$2","$3","$4"
+  compare_str="$2","$3"
+  db_children_file=$(get_db_file "$new_name")
+  #create db file if ti doesn't existed
+  if [ ! -f "$db_children_file" ]; then
+	touch "$db_children_file"
+  fi
+  #insert to children
+  if [ ! -z "$db_children_file" ]; then
+	match=$(cat $db_children_file | grep "$compare_str")
+	if [ -z "$match" ]; then
+	  echo "$new_record" >>"$db_children_file"
+	fi
+  fi
+
+  if [ ! -f "$DATABASE_FULL" ]; then
+	touch "$DATABASE_FULL"
+  fi
+  # insert to db parent file
+  match=$(cat "$DATABASE_FULL" | grep "$compare_str")
+  if [ -z "$match" ]; then
+	echo "$new_record" >>"$DATABASE_FULL"
+  fi
+}
 
 # convert file size to human readable
 convert_size() {
@@ -487,6 +542,13 @@ get_target_folder_by_ext() {
 		fi
 	elif [[ $file_ext == "mxf" ]] || [[ $file_ext == "MXF" ]]; then
 		result="$MOV_MXF_PATH"
+		if [ ! -z $date ]; then
+			year=${date: -2}
+			if [ $((year + 0)) -ge 13 ] && [ $((year + 0)) -le 19 ]; then
+				mkdir -p "$result/20"$year"/"
+				result="$result/20"$year"/"
+			fi
+		fi
 	else result="$OTHER_PATH"; fi
 
 	echo $result
@@ -509,6 +571,8 @@ save_new_video_name() {
 
 is_contain_blacklist() {
 	local file_name="$1"
+	# convert lowcase to upcase
+	file_name=$(echo ${file_name^^})
 	for i in "${DELETE_KEYWORD[@]}"; do
 		if [[ $file_name == *"$i"* ]]; then
 			return 0 #true
@@ -519,6 +583,7 @@ is_contain_blacklist() {
 
 is_contain_whitelist() {
 	local file_name="$1"
+	file_name=$(echo ${file_name^^})
 	for i in "${WHITE_LIST_KEYWORD[@]}"; do
 		if [[ $file_name == *"$i"* ]]; then
 			return 0 #true
@@ -529,6 +594,7 @@ is_contain_whitelist() {
 
 is_contain_process_keyword() {
 	local file_name="$1"
+	file_name=$(echo ${file_name^^})
 	for i in "${SUFFIX_LISTS[@]}"; do
 		if [[ $file_name == *"$i"* ]]; then
 			return 0 #true
@@ -629,6 +695,11 @@ process_match_video() {
 		new_name=$(standardized_name "$file_path")
 		echo "New name : $new_name"
 		if [[ $mode == "RUN" ]]; then
+			# check file size and move to xl folder
+			if [ $size -gt $XL_FILE_THRESHOLD ]; then
+				echo "Copy to : $PROCESSED_XL_FILE"
+				cp -f "$file_path" "$PROCESSED_XL_FILE"
+			fi
 			if [[ "$(basename "$file_path")" != "$new_name" ]]; then
 				mv -f "$file_path" "$(dirname "$file_path")/$new_name"
 			fi
@@ -646,22 +717,19 @@ process_match_video() {
 		file_ext=$(echo "$file" | rev | cut -d'.' -f 1 | rev)
 		if [[ $file_ext == "mp4" ]] || [[ $file_ext == "MP4" ]]; then
 			MP4_FILE_COUNT=$((MP4_FILE_COUNT + 1))
-			if [ mode == "RUN" ]; then
-				MP4_SIZE_COUNT=$(($MP4_SIZE_COUNT + $size))
-			fi
+			MP4_SIZE_COUNT=$(($MP4_SIZE_COUNT + $size))
 		elif [[ $file_ext == "mov" ]] || [[ $file_ext == "MOV" ]]; then
 			MXF_MOV_FILE_COUNT=$(($MXF_MOV_FILE_COUNT + 1))
-			if [ mode == "RUN" ]; then
-				MXF_MOV_SIZE_COUNT=$(($MXF_MOV_SIZE_COUNT + $size))
-			fi
+			MXF_MOV_SIZE_COUNT=$(($MXF_MOV_SIZE_COUNT + $size))
 		elif [[ $file_ext == "mxf" ]] || [[ $file_ext == "MXF" ]]; then
 			MXF_MOV_FILE_COUNT=$(($MXF_MOV_FILE_COUNT + 1))
-			if [ mode == "RUN" ]; then
-				MXF_MOV_SIZE_COUNT=$(($MXF_MOV_SIZE_COUNT + $size))
-			fi
+			MXF_MOV_SIZE_COUNT=$(($MXF_MOV_SIZE_COUNT + $size))
 		else
 			echo
 		fi
+
+		# insert to database
+		insert_db "$old_name" "$new_name" "$size" "$target_folder"
 	else
 		echo "Unknow file name"
 		echo "Move to : $CHECK_PATH"
@@ -674,13 +742,7 @@ process_match_video() {
 	fi
 }
 
-main() {
-	echo "Script version : $_VERSION"
-	if [ ! -f "$COUNTRY_FILE" ]; then
-		echo "Not found country file : " $COUNTRY_FILE
-		exit 1
-	fi
-
+validate(){
 	# validate argument
 	validate=0
 	if [ ! -d "$MP4_PATH" ]; then
@@ -707,6 +769,21 @@ main() {
 		printf "${YELLOW}Warning! Directory doesn't existed [CHECK_PATH][$CHECK_PATH]${NC}\n"
 		validate=1
 	fi
+
+	if [ ! -d "$PROCESSED_XL_FILE" ]; then
+		printf "${YELLOW}Warning! Directory doesn't existed [PROCESSED_XL_FILE][$PROCESSED_XL_FILE]${NC}\n"
+		validate=1
+	fi
+}
+
+main() {
+	echo "Script version : $_VERSION"
+	if [ ! -f "$COUNTRY_FILE" ]; then
+		echo "Not found country file : " $COUNTRY_FILE
+		exit 1
+	fi
+
+	validate_code=$(standardized_name)
 
 	echo "Old Name, New Name, Size, Move to" >"$REPORT_FILE"
 	echo "" >"$NEW_VIDEO_NAME_FILE"
