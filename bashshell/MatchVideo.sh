@@ -23,7 +23,7 @@ MATCH_OLD_NAME=1
 MATCH_NEW_NAME=2
 
 # maximum file process each time
-MAX_FILE_PROCESS=1000
+# MAX_FILE_PROCESS=100
 
 # This is file contain all country code
 COUNTRY_FILE="countries.txt"
@@ -46,7 +46,7 @@ SUFFIX_LISTS=("SUB" "FINAL" "CLEAN" "TW" "TWITTER" "FB" "FACEBOOK" "YT" "YOUTUBE
 DELETE_KEYWORD=("RECORD" "-VO" "-CAM" "-TAKE" "TEST")
 
 # File name contain this kewords will not be deleted
-WHITE_LIST_KEYWORD=("CAMBRIDGEXAMS" "CAMPDAVIDACCORDS" "WASHINGDISHESRECORD" "CONFEDERATESTATUE" "HOTTESTPEPPER" "VOICEWHEELCHAIR" "PROTEST")
+WHITE_LIST_KEYWORD=("CAMBRIDGEXAMS" "CAMPDAVIDACCORDS" "WASHINGDISHESRECORD" "CONFEDERATESTATUE" "HOTTESTPEPPER" "VOICEWHEELCHAIR" "PROTEST" "CAMBODIA")
 
 # Log folder store application running log, report log
 LOG_PATH="/mnt/ajplus/Admin/"
@@ -55,6 +55,7 @@ LOG_PATH="/mnt/ajplus/Admin/"
 DELETED_PATH="/mnt/restore/VIDEO/_del/"
 
 # This folder store files that need to check by manual
+DELETE_FILE_THRESHOLD=$((15 * 1024 * 1024)) #15Mb
 CHECK_PATH="/mnt/restore/VIDEO/_check/"
 
 # Folder store mp4 video
@@ -64,15 +65,15 @@ MP4_PATH="/mnt/restore/VIDEO/_mp4/"
 MOV_MXF_PATH="/mnt/restore/VIDEO/_transcode/"
 
 # Folder store processed file and filesize > 1.5G
-XL_FILE_THRESHOLD=$((15 * 1024 * 1024 * 1024 /10 )) #150Gb
+XL_FILE_THRESHOLD=$((15 * 1024 * 1024 * 1024 / 10)) #15Gb
 PROCESSED_XL_FILE="/mnt/restore/VIDEO/xl/"
 
 # Folder store file that doesn't match any name
 OTHER_PATH="/mnt/restore/VIDEO/_check/"
 
 #  Report file
-REPORT_FILE="$LOG_PATH/matched_video_report.csv"
-NEW_VIDEO_NAME_FILE="$LOG_PATH/new_video_name.txt"
+REPORT_FILE="$LOG_PATH/matched_video_report_"$(date +%d%m%y_%H%M)".csv"
+NEW_VIDEO_NAME_FILE="$LOG_PATH/new_video_name_"$(date +%d%m%y_%H%M)".txt"
 
 TOTAL_FILE_COUNT=0
 TOTAL_SIZE_COUNT=0
@@ -88,6 +89,8 @@ DELETE_SIZE_COUNT=0
 
 CHECK_FILE_COUNT=0
 CHECK_SIZE_COUNT=0
+
+RAW_FILE_COUNT=1
 
 gline_path="/tmp/.line_"$(date +%s)
 gteam_path="/tmp/.team_"$(date +%s)
@@ -109,10 +112,11 @@ helpFunction() {
 	echo -e "\t-x Run the script in execute mode"
 	echo -e "\t-d Manual test with input text file"
 	echo -e "\t-l Set language for file name"
+	echo -e "\t-b Set number processing file"
 	exit 1
 }
 
-while getopts "d:c:x:l:" opt; do
+while getopts "d:c:x:l:b:" opt; do
 	case "$opt" in
 	d)
 		INPUT="$OPTARG"
@@ -129,6 +133,10 @@ while getopts "d:c:x:l:" opt; do
 	x)
 		INPUT+=("$OPTARG")
 		mode="RUN"
+		;;
+	b)
+		INPUT+=("$OPTARG")
+		MAX_FILE_PROCESS=("$OPTARG")
 		;;
 	l) default_lang="$OPTARG" ;;
 	?) helpFunction ;;
@@ -152,33 +160,33 @@ get_db_file() {
 }
 
 insert_db() {
-  local old_name="$1"
-  local new_name="$2"
-  local size="$3"
-  local path="$4"
-  new_record="$1","$2","$3","$4"
-  compare_str="$2","$3"
-  db_children_file=$(get_db_file "$new_name")
-  #create db file if ti doesn't existed
-  if [ ! -f "$db_children_file" ]; then
-	touch "$db_children_file"
-  fi
-  #insert to children
-  if [ ! -z "$db_children_file" ]; then
-	match=$(cat $db_children_file | grep "$compare_str")
-	if [ -z "$match" ]; then
-	  echo "$new_record" >>"$db_children_file"
+	local old_name="$1"
+	local new_name="$2"
+	local size="$3"
+	local path="$4"
+	new_record="$1","$2","$3","$4"
+	compare_str="$2","$3"
+	db_children_file=$(get_db_file "$new_name")
+	#create db file if ti doesn't existed
+	if [ ! -f "$db_children_file" ]; then
+		touch "$db_children_file"
 	fi
-  fi
+	#insert to children
+	if [ ! -z "$db_children_file" ]; then
+		match=$(cat $db_children_file | grep "$compare_str")
+		if [ -z "$match" ]; then
+			echo "$new_record" >>"$db_children_file"
+		fi
+	fi
 
-  if [ ! -f "$DATABASE_FULL" ]; then
-	touch "$DATABASE_FULL"
-  fi
-  # insert to db parent file
-  match=$(cat "$DATABASE_FULL" | grep "$compare_str")
-  if [ -z "$match" ]; then
-	echo "$new_record" >>"$DATABASE_FULL"
-  fi
+	if [ ! -f "$DATABASE_FULL" ]; then
+		touch "$DATABASE_FULL"
+	fi
+	# insert to db parent file
+	match=$(cat "$DATABASE_FULL" | grep "$compare_str")
+	if [ -z "$match" ]; then
+		echo "$new_record" >>"$DATABASE_FULL"
+	fi
 }
 
 # convert file size to human readable
@@ -283,6 +291,9 @@ correct_desc_info() {
 	else
 		result="$country$result"
 	fi
+	# remove some keywords from description
+	result=${result/"FINAL"/""}
+	result=${result/"_NUMBER"/""}
 	echo $result
 }
 
@@ -511,6 +522,10 @@ standardized_name() {
 
 	name=${name/"ES-ST"/"ES-RT"}
 	name=${name/"E-SH"/"ES-RT"}
+	name=${name/"VJDIRTY"/"RAW"}
+	name=${name/"INTVS"/"RAW"}
+	name=${name/"VJMASTER"/"RAW"}
+	name=${name/"VJCLEAN"/"CLEAN"}
 
 	for i in "${TEAMS[@]}"; do
 		name=${name/"$i""_"/"$i""-"}
@@ -524,31 +539,10 @@ get_target_folder_by_ext() {
 	date=$(echo $(basename $file) | grep -oE '[0-9]{2}[0-9]{2}[0-9]{2}')
 	if [[ $file_ext == "mp4" ]] || [[ $file_ext == "MP4" ]]; then
 		result="$MP4_PATH"
-		if [ ! -z $date ]; then
-			year=${date: -2}
-			if [ $((year + 0)) -ge 13 ] && [ $((year + 0)) -le 19 ]; then
-				mkdir -p "$result/20"$year"/"
-				result="$result/20"$year"/"
-			fi
-		fi
 	elif [[ $file_ext == "mov" ]] || [[ $file_ext == "MOV" ]]; then
 		result="$MOV_MXF_PATH"
-		if [ ! -z $date ]; then
-			year=${date: -2}
-			if [ $((year + 0)) -ge 13 ] && [ $((year + 0)) -le 19 ]; then
-				mkdir -p "$result/20"$year"/"
-				result="$result/20"$year"/"
-			fi
-		fi
 	elif [[ $file_ext == "mxf" ]] || [[ $file_ext == "MXF" ]]; then
 		result="$MOV_MXF_PATH"
-		if [ ! -z $date ]; then
-			year=${date: -2}
-			if [ $((year + 0)) -ge 13 ] && [ $((year + 0)) -le 19 ]; then
-				mkdir -p "$result/20"$year"/"
-				result="$result/20"$year"/"
-			fi
-		fi
 	else result="$OTHER_PATH"; fi
 
 	echo $result
@@ -575,10 +569,11 @@ is_contain_blacklist() {
 	file_name=$(echo ${file_name^^})
 	for i in "${DELETE_KEYWORD[@]}"; do
 		if [[ $file_name == *"$i"* ]]; then
-			return 0 #true
+			echo "$i" #true
+			return
 		fi
 	done
-	return 1 #false
+	echo "-1" #false
 }
 
 is_contain_whitelist() {
@@ -613,11 +608,12 @@ dummy_test() {
 		TOTAL_FILE_COUNT=$(($TOTAL_FILE_COUNT + 1))
 
 		# Check delete condition
-		if is_contain_blacklist "$old_name"; then
+		delete_keyword=$(is_contain_blacklist "$old_name")
+		if [ "$delete_keyword" != "-1" ]; then
 			if is_contain_whitelist "$old_name"; then
-				echo "Contain white list"
+				echo " "
 			else
-				echo "Found deleted keyword"
+				echo "Found deleted keyword : '$delete_keyword'"
 				echo "Move to : $DELETED_PATH"
 				echo "$line, - ,0, $DELETED_PATH" >>"$REPORT_FILE"
 				echo
@@ -655,6 +651,16 @@ dummy_test() {
 			fi
 		else
 			echo "Unknown file name"
+			new_name=$(standardized_name "$file_path")
+			RAW_FILE_COUNT=$((RAW_FILE_COUNT + 1))
+			if [[ "$new_name" == *"-RAW"* ]]; then
+				new_name=${new_name/"-RAW"/"-RAW"$RAW_FILE_COUNT}
+			else
+				ext=$(echo $new_name | rev | cut -d'.' -f 1 | rev)
+				name=$(echo $new_name | rev | cut -d'.' -f2- | rev)
+				new_name=$name"-RAW"$RAW_FILE_COUNT".$ext"
+			fi
+			echo "New name : $new_name"
 			echo "Move to : $CHECK_PATH"
 			echo "$line, - ,0, $CHECK_PATH" >>"$REPORT_FILE"
 			CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT + 1))
@@ -672,11 +678,12 @@ process_match_video() {
 	old_name=$(basename "$file_path")
 
 	# Check delete condition
-	if is_contain_blacklist "$old_name"; then
+	delete_keyword=$(is_contain_blacklist "$old_name")
+	if [ "$delete_keyword" != "-1" ]; then
 		if is_contain_whitelist "$old_name"; then
-			echo "Contain white list"
+			echo " "
 		else
-			echo "Found deleted keyword"
+			echo "Found deleted keyword : '$delete_keyword'"
 			echo "Move to : $DELETED_PATH"
 			if [[ $mode == "RUN" ]]; then
 				mv -f "$file_path" "$DELETED_PATH"
@@ -695,13 +702,14 @@ process_match_video() {
 		new_name=$(standardized_name "$file_path")
 		echo "New name : $new_name"
 		if [[ $mode == "RUN" ]]; then
+			if [[ "$(basename "$file_path")" != "$new_name" ]]; then
+				mv -f "$file_path" "$(dirname "$file_path")/$new_name"
+			fi
+
 			# check file size and move to xl folder
 			if [ $size -gt $XL_FILE_THRESHOLD ]; then
 				echo "Copy to : $PROCESSED_XL_FILE"
-				cp -f "$file_path" "$PROCESSED_XL_FILE"
-			fi
-			if [[ "$(basename "$file_path")" != "$new_name" ]]; then
-				mv -f "$file_path" "$(dirname "$file_path")/$new_name"
+				cp -f "$(dirname "$file_path")/$new_name" "$PROCESSED_XL_FILE"
 			fi
 		fi
 
@@ -732,6 +740,16 @@ process_match_video() {
 		insert_db "$old_name" "$new_name" "$size" "$target_folder"
 	else
 		echo "Unknown file name"
+		new_name=$(standardized_name "$file_path")
+		RAW_FILE_COUNT=$((RAW_FILE_COUNT + 1))
+		if [[ "$new_name" == *"-RAW"* ]]; then
+			new_name=${new_name/"-RAW"/"-RAW"$RAW_FILE_COUNT}
+		else
+			ext=$(echo $new_name | rev | cut -d'.' -f 1 | rev)
+			name=$(echo $new_name | rev | cut -d'.' -f2- | rev)
+			new_name=$name"-RAW"$RAW_FILE_COUNT".$ext"
+		fi
+		echo "New name : $new_name"
 		echo "Move to : $CHECK_PATH"
 		if [[ $mode == "RUN" ]]; then
 			mv -f "$file_path" "$CHECK_PATH"
@@ -742,7 +760,7 @@ process_match_video() {
 	fi
 }
 
-validate(){
+validate() {
 	# validate argument
 	validate=0
 	if [ ! -d "$MP4_PATH" ]; then
@@ -782,13 +800,16 @@ main() {
 		echo "Not found country file : " $COUNTRY_FILE
 		exit 1
 	fi
+	if [ -z "$MAX_FILE_PROCESS" ]; then
+		MAX_FILE_PROCESS=100
+	fi
+	echo "Number processing file: $MAX_FILE_PROCESS"
 
-	validate_code=$(standardized_name)
+	validate_code=$(validate)
 
 	echo "Old Name, New Name, Size, Move to" >"$REPORT_FILE"
 	echo "" >"$NEW_VIDEO_NAME_FILE"
 
-	echo "Database file : $DATABASE_FILE"
 	if [[ $mode == "RUN" ]]; then
 		echo "Run the script in execute mode"
 	elif [[ $mode == "TEST" ]]; then
@@ -850,7 +871,7 @@ main() {
 	printf "%10s %-15s : $REPORT_FILE \n" "-" "Report file"
 	printf "%10s %-15s : $NEW_VIDEO_NAME_FILE \n" "-" "Video new name file"
 }
-log_file="$LOG_PATH/matching_video_log.txt"
+log_file="$LOG_PATH/matching_video_log_"$(date +%d%m%y_%H%M)".txt"
 
 main | while IFS= read -r line; do printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee "$log_file"
 
