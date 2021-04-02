@@ -654,7 +654,7 @@ dummy_test() {
 				echo
 			fi
 		else
-			echo "Unknow file name"
+			echo "Unknown file name"
 			echo "Move to : $CHECK_PATH"
 			echo "$line, - ,0, $CHECK_PATH" >>"$REPORT_FILE"
 			CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT + 1))
@@ -731,7 +731,7 @@ process_match_video() {
 		# insert to database
 		insert_db "$old_name" "$new_name" "$size" "$target_folder"
 	else
-		echo "Unknow file name"
+		echo "Unknown file name"
 		echo "Move to : $CHECK_PATH"
 		if [[ $mode == "RUN" ]]; then
 			mv -f "$file_path" "$CHECK_PATH"
