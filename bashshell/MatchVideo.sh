@@ -4,12 +4,12 @@
 #Description    : Find all video in source folder, rename file (same ZipSun rule)
 #               move file to target folder
 #               Rename and move file to destination folder
-#Version        : 2.1
+#Version        : 2.2
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="MatchVideoScript - 2.1"
+_VERSION="MatchVideoScript - 2.2"
 
 # Log color code
 RED='\033[0;31m'
