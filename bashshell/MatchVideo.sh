@@ -22,9 +22,6 @@ NOT_MATCH=0
 MATCH_OLD_NAME=1
 MATCH_NEW_NAME=2
 
-# maximum file process each time
-# MAX_FILE_PROCESS=100
-
 # This is file contain all country code
 COUNTRY_FILE="countries.txt"
 
@@ -113,10 +110,11 @@ helpFunction() {
 	echo -e "\t-d Manual test with input text file"
 	echo -e "\t-l Set language for file name"
 	echo -e "\t-b Set number processing file"
+	echo -e "\t-r Repeat processing job"
 	exit 1
 }
 
-while getopts "d:c:x:l:b:" opt; do
+while getopts "d:c:x:l:b:r:" opt; do
 	case "$opt" in
 	d)
 		INPUT="$OPTARG"
@@ -135,8 +133,10 @@ while getopts "d:c:x:l:b:" opt; do
 		mode="RUN"
 		;;
 	b)
-		INPUT+=("$OPTARG")
 		MAX_FILE_PROCESS=("$OPTARG")
+		;;
+	r)
+		REPEAT_TIME=("$OPTARG")
 		;;
 	l) default_lang="$OPTARG" ;;
 	?) helpFunction ;;
@@ -752,6 +752,8 @@ process_match_video() {
 		echo "New name : $new_name"
 		echo "Move to : $CHECK_PATH"
 		if [[ $mode == "RUN" ]]; then
+			mv -f "$file_path" "$(dirname "$file_path")/$new_name"
+			file_path="$(dirname "$file_path")/$new_name"
 			mv -f "$file_path" "$CHECK_PATH"
 		fi
 		echo "$old_name, - ,$(convert_size "$size"), $CHECK_PATH" >>"$REPORT_FILE"
@@ -794,19 +796,7 @@ validate() {
 	fi
 }
 
-main() {
-	echo "Script version : $_VERSION"
-	if [ ! -f "$COUNTRY_FILE" ]; then
-		echo "Not found country file : " $COUNTRY_FILE
-		exit 1
-	fi
-	if [ -z "$MAX_FILE_PROCESS" ]; then
-		MAX_FILE_PROCESS=100
-	fi
-	echo "Number processing file: $MAX_FILE_PROCESS"
-
-	validate_code=$(validate)
-
+execute() {
 	echo "Old Name, New Name, Size, Move to" >"$REPORT_FILE"
 	echo "" >"$NEW_VIDEO_NAME_FILE"
 
@@ -871,15 +861,55 @@ main() {
 	printf "%10s %-15s : $REPORT_FILE \n" "-" "Report file"
 	printf "%10s %-15s : $NEW_VIDEO_NAME_FILE \n" "-" "Video new name file"
 }
+
+main() {
+	echo "Script version : $_VERSION"
+	if [ ! -f "$COUNTRY_FILE" ]; then
+		echo "Not found country file : " $COUNTRY_FILE
+		exit 1
+	fi
+	if [ -z "$MAX_FILE_PROCESS" ]; then
+		MAX_FILE_PROCESS=100
+	fi
+	echo "Number processing file: $MAX_FILE_PROCESS"
+
+	validate_code=$(validate)
+
+	if [ ! -z "$REPEAT_TIME" ]; then
+		echo "Run the script in loop mode"
+		while true; do
+			if [ -z "$(ls -A "$MOV_MXF_PATH")" ]; then
+				echo "Folder [$MOV_MXF_PATH] is empty"
+				if [[ $mode == "RUN" ]]; then
+					execute
+				else
+					echo "Repeat mode only run for execute mode (not work for testing mode)"
+					break
+				fi
+			else
+				echo "Folder [$MOV_MXF_PATH] is NOT empty"
+				echo "The script will sleep in $REPEAT_TIME minute"
+				# sleep
+				sleep "$REPEAT_TIME"m
+			fi
+		done
+	else
+		echo "Run the script in one time mode"
+		execute
+	fi
+}
+
 log_file="$LOG_PATH/matching_video_log_"$(date +%d%m%y_%H%M)".txt"
 
 main | while IFS= read -r line; do printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee "$log_file"
 
 # remove duplicate name in file
 sleep 3
-tmp_name_file="/tmp/.new_name"$(date +%s)
-sort "$NEW_VIDEO_NAME_FILE" | uniq >"$tmp_name_file"
-cat "$tmp_name_file" >"$NEW_VIDEO_NAME_FILE"
-rm -rf "$tmp_name_file"
+if [[ -f "$NEW_VIDEO_NAME_FILE" ]]; then
+	tmp_name_file="/tmp/.new_name"$(date +%s)
+	sort "$NEW_VIDEO_NAME_FILE" | uniq >"$tmp_name_file"
+	cat "$tmp_name_file" >"$NEW_VIDEO_NAME_FILE"
+	rm -rf "$tmp_name_file"
+fi
 
 echo "Bye"
