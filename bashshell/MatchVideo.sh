@@ -241,6 +241,19 @@ check_position_replace() {
 	echo $name
 }
 
+replace_keyword() {
+	local file_name="$1"
+	# convert lowcase to upcase
+	file_name=$(echo ${file_name^^})
+	file_name=${file_name/"-VJDIRTY"/""}
+	file_name=${file_name/"-INTVS"/""}
+	file_name=${file_name/"-VJMASTER"/""}
+	file_name=${file_name/"-VJCLEAN"/"-CLEAN"}
+	file_name=${file_name/"-VJRAW"/""}
+	file_name=${file_name/"_RAW_"/"_"}
+	echo "$file_name"
+}
+
 process_episode() {
 	name=$1
 	match=$(echo $name | grep -oE 'S[0-9]{1,}X[0-9]{1,}')
@@ -522,10 +535,6 @@ standardized_name() {
 
 	name=${name/"ES-ST"/"ES-RT"}
 	name=${name/"E-SH"/"ES-RT"}
-	name=${name/"VJDIRTY"/"RAW"}
-	name=${name/"INTVS"/"RAW"}
-	name=${name/"VJMASTER"/"RAW"}
-	name=${name/"VJCLEAN"/"CLEAN"}
 
 	for i in "${TEAMS[@]}"; do
 		name=${name/"$i""_"/"$i""-"}
@@ -651,6 +660,8 @@ dummy_test() {
 			fi
 		else
 			echo "Unknown file name"
+			mv -f "$file_path" "$(dirname "$file_path")/$(replace_keyword "$old_name")"
+			file_path="$(dirname "$file_path")/$(replace_keyword "$old_name")"
 			new_name=$(standardized_name "$file_path")
 			RAW_FILE_COUNT=$((RAW_FILE_COUNT + 1))
 			if [[ "$new_name" == *"-RAW"* ]]; then
@@ -740,6 +751,8 @@ process_match_video() {
 		insert_db "$old_name" "$new_name" "$size" "$target_folder"
 	else
 		echo "Unknown file name"
+		mv -f "$file_path" "$(dirname "$file_path")/$(replace_keyword "$old_name")"
+		file_path="$(dirname "$file_path")/$(replace_keyword "$old_name")"
 		new_name=$(standardized_name "$file_path")
 		RAW_FILE_COUNT=$((RAW_FILE_COUNT + 1))
 		if [[ "$new_name" == *"-RAW"* ]]; then
