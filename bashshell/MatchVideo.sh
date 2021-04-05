@@ -4,12 +4,12 @@
 #Description    : Find all video in source folder, rename file (same ZipSun rule)
 #               move file to target folder
 #               Rename and move file to destination folder
-#Version        : 2.2
+#Version        : 2.3
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="MatchVideoScript - 2.2"
+_VERSION="MatchVideoScript - 2.3"
 
 # Log color code
 RED='\033[0;31m'
@@ -43,7 +43,7 @@ SUFFIX_LISTS=("SUB" "FINAL" "CLEAN" "TW" "TWITTER" "FB" "FACEBOOK" "YT" "YOUTUBE
 DELETE_KEYWORD=("RECORD" "-VO" "-CAM" "-TAKE" "TEST")
 
 # File name contain this kewords will not be deleted
-WHITE_LIST_KEYWORD=("CAMBRIDGEXAMS" "CAMPDAVIDACCORDS" "WASHINGDISHESRECORD" "CONFEDERATESTATUE" "HOTTESTPEPPER" "VOICEWHEELCHAIR" "PROTEST" "CAMBODIA")
+WHITE_LIST_KEYWORD=("CAMBRIDGEXAMS" "CAMPDAVIDACCORDS" "WASHINGDISHESRECORD" "CONFEDERATESTATUE" "HOTTESTPEPPER" "VOICEWHEELCHAIR" "PROTEST" "CAMBODIA" "VOTELOCAL")
 
 # Log folder store application running log, report log
 LOG_PATH="/mnt/ajplus/Admin/"
@@ -86,8 +86,6 @@ DELETE_SIZE_COUNT=0
 
 CHECK_FILE_COUNT=0
 CHECK_SIZE_COUNT=0
-
-RAW_FILE_COUNT=1
 
 gline_path="/tmp/.line_"$(date +%s)
 gteam_path="/tmp/.team_"$(date +%s)
@@ -241,36 +239,47 @@ check_position_replace() {
 	echo $name
 }
 
-replace_keyword() {
-	local file_name="$1"
-	# convert lowcase to upcase
-	file_name=$(echo ${file_name^^})
-	file_name=${file_name/"-VJDIRTY"/""}
-	file_name=${file_name/"-INTVS"/""}
-	file_name=${file_name/"-VJMASTER"/""}
-	file_name=${file_name/"-VJCLEAN"/"-CLEAN"}
-	file_name=${file_name/"-VJRAW"/""}
-	file_name=${file_name/"_RAW_"/"_"}
-	echo "$file_name"
-}
-
 process_episode() {
 	name=$1
 	match=$(echo $name | grep -oE 'S[0-9]{1,}X[0-9]{1,}')
 	if [ ! -z "$match" ]; then
 		name=${name/$match/"_"$match"_"}
 		echo "SH-" >"$gteam_path"
-		echo $name
-		return
 	fi
+
 	match=$(echo $name | grep -oE '[0-9]{1,}X[0-9]{1,}')
 	if [ ! -z "$match" ]; then
 		name=${name/$match/"_S"$match"_"}
 		echo "SH-" >"$gteam_path"
-		echo $name
-		return
+	fi
+
+	match=$(echo $name | grep -oE '_[0-9]{1,}[0-9]{1,}[0-9]{1,}' | head -n 1)
+	if [ ! -z "$match" ]; then
+		name=${name//$match/""}
+	fi
+
+	match=$(echo $name | grep -oE '_[0-9]{1,}' | head -n 1)
+	if [ ! -z "$match" ]; then
+		name=${name//$match/""}
 	fi
 	echo $name
+}
+
+find_raw_index() {
+	index=1
+	local name="$1"
+	if [[ "$name" == *"."* ]]; then
+		name=$(echo $name | rev | cut -d'.' -f2- | rev)
+		file_name=$(find "$CHECK_PATH" -type f | sort | head -n 1 | grep "$name")
+		if [ ! -z $file_name ];then
+			# remove extension
+			file_name=$(echo "$file_name" | rev | cut -d'.' -f2- | rev)
+			#get raw index
+			index=$(echo "$file_name" | rev | cut -d'RAW' -f2- | rev)
+			index=$(($index + 1))
+		fi
+	fi
+	echo $index
 }
 
 correct_desc_info() {
@@ -428,6 +437,11 @@ order_movie_element() {
 		lang="$default_lang-"
 	fi
 
+	# check case conver VJ to NG
+	if [[ $team == *"NG"* ]] && [[ $name == *"-VJ-"* ]];then
+		desc="$desc"_VJ
+	fi
+
 	if [ -z "$lang" ]; then
 		name="$team$desc"
 	else name="$lang$team$desc"; fi
@@ -479,6 +493,27 @@ standardized_name() {
 	#Convert lower case to upper case
 	name=$(echo ${name^^})
 
+	#Replace invaild keyword
+	name=${name/"VJDIRTY"/"_VJDIRTY"}
+	name=${name/"VJ-DIRTY"/"_VJDIRTY"}
+	name=${name/"VJ_DIRTY"/"_VJDIRTY"}
+
+	name=${name/"INTVS"/"_INTVS_VJRAW"}
+
+	name=${name/"VJMASTER"/"_VJMASTER"}
+	name=${name/"VJ-MASTER"/"_VJMASTER"}
+	name=${name/"VJ_MASTER"/"_VJMASTER"}
+	
+	name=${name/"VJCLEAN"/"_VJCLEAN"}
+	name=${name/"VJ-CLEAN"/"_VJCLEAN"}
+	name=${name/"VJ_CLEAN"/"_VJCLEAN"}
+	
+	name=${name/"VJRAW"/"_VJRAW"}
+	name=${name/"VJ_RAW"/"_VJRAW"}
+	name=${name/"VJ-RAW"/"_VJRAW"}
+	
+	name=${name/"_RAW_"/"_"}
+
 	match=$(echo $name | grep -o 'SALEET')
 	if [ ! -z "$match" ]; then
 		name=${name/$match/""}
@@ -507,6 +542,14 @@ standardized_name() {
 	name=$(remove_blacklist_keyword "$name")
 	if [[ $name = *_ ]]; then name=${name::-1}; fi
 	if [[ $name = _* ]]; then name=${name:1}; fi
+
+	# Extract keyword from description
+	name=${name/"FINAL"/"-FINAL"}
+	name=${name/"CLEAN"/"-CLEAN"}
+	name=${name/"FB"/"-FB"}
+	name=${name/"FACEBOOK"/"-FACEBOOK"}
+	name=${name/"FB1"/"-FB"}
+	name=${name/"FB2"/"-FB"}
 
 	name=$(process_episode "$name")
 
@@ -548,10 +591,27 @@ get_target_folder_by_ext() {
 	date=$(echo $(basename $file) | grep -oE '[0-9]{2}[0-9]{2}[0-9]{2}')
 	if [[ $file_ext == "mp4" ]] || [[ $file_ext == "MP4" ]]; then
 		result="$MP4_PATH"
+		if [ ! -z $date ]; then
+			year=${date: -2}
+			if [ $((year + 0)) -ge 18 ]; then
+				mkdir -p "$result/20"$year"/"
+				result="$result/20"$year"/"
+			fi
+		fi
 	elif [[ $file_ext == "mov" ]] || [[ $file_ext == "MOV" ]]; then
 		result="$MOV_MXF_PATH"
+		year=${date: -2}
+		if [ $((year + 0)) -ge 18 ]; then
+			mkdir -p "$result/20"$year"/"
+			result="$result/20"$year"/"
+		fi
 	elif [[ $file_ext == "mxf" ]] || [[ $file_ext == "MXF" ]]; then
 		result="$MOV_MXF_PATH"
+		year=${date: -2}
+		if [ $((year + 0)) -ge 18 ]; then
+			mkdir -p "$result/20"$year"/"
+			result="$result/20"$year"/"
+		fi
 	else result="$OTHER_PATH"; fi
 
 	echo $result
@@ -659,11 +719,8 @@ dummy_test() {
 				echo
 			fi
 		else
-			echo "Unknown file name"
-			mv -f "$file_path" "$(dirname "$file_path")/$(replace_keyword "$old_name")"
-			file_path="$(dirname "$file_path")/$(replace_keyword "$old_name")"
 			new_name=$(standardized_name "$file_path")
-			RAW_FILE_COUNT=$((RAW_FILE_COUNT + 1))
+			RAW_FILE_COUNT=$(find_raw_index "$new_name")
 			if [[ "$new_name" == *"-RAW"* ]]; then
 				new_name=${new_name/"-RAW"/"-RAW"$RAW_FILE_COUNT}
 			else
@@ -673,7 +730,7 @@ dummy_test() {
 			fi
 			echo "New name : $new_name"
 			echo "Move to : $CHECK_PATH"
-			echo "$line, - ,0, $CHECK_PATH" >>"$REPORT_FILE"
+			echo "$line, $new_name ,0, $CHECK_PATH" >>"$REPORT_FILE"
 			CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT + 1))
 		fi
 
@@ -750,11 +807,8 @@ process_match_video() {
 		# insert to database
 		insert_db "$old_name" "$new_name" "$size" "$target_folder"
 	else
-		echo "Unknown file name"
-		mv -f "$file_path" "$(dirname "$file_path")/$(replace_keyword "$old_name")"
-		file_path="$(dirname "$file_path")/$(replace_keyword "$old_name")"
 		new_name=$(standardized_name "$file_path")
-		RAW_FILE_COUNT=$((RAW_FILE_COUNT + 1))
+		RAW_FILE_COUNT=$(find_raw_index "$new_name")
 		if [[ "$new_name" == *"-RAW"* ]]; then
 			new_name=${new_name/"-RAW"/"-RAW"$RAW_FILE_COUNT}
 		else
@@ -769,7 +823,7 @@ process_match_video() {
 			file_path="$(dirname "$file_path")/$new_name"
 			mv -f "$file_path" "$CHECK_PATH"
 		fi
-		echo "$old_name, - ,$(convert_size "$size"), $CHECK_PATH" >>"$REPORT_FILE"
+		echo "$old_name, $new_name ,$(convert_size "$size"), $CHECK_PATH" >>"$REPORT_FILE"
 		CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT + 1))
 		CHECK_SIZE_COUNT=$(($CHECK_SIZE_COUNT + $size))
 	fi
