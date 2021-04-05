@@ -275,7 +275,7 @@ find_raw_index() {
 			# remove extension
 			file_name=$(echo "$file_name" | rev | cut -d'.' -f2- | rev)
 			#get raw index
-			index=$(echo "$file_name" | rev | cut -d'RAW' -f2- | rev)
+			index=$(echo "$file_name" | awk -FRAW '{print $NF}')
 			index=$(($index + 1))
 		fi
 	fi
