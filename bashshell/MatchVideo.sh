@@ -29,7 +29,7 @@ COUNTRY_FILE="countries.txt"
 LANGUAGES=("AR" "EN" "FR" "ES")
 
 # List teams inside zip file name
-TEAMS=("RT", "NG" "EG" "CT" "SH" "	")
+TEAMS=("RT", "NG" "EG" "CT" "SH" "ST" "	")
 
 # Neglects keyword will be remove from zip file name
 NEGLECTS_KEYWORD=("V1" "V2" "V3" "V4" "SQ" "-SW-" "-NA-" "-CL-" "FYT" "FTY" "SHORT" "SQUARE" "SAKHR"
@@ -56,14 +56,14 @@ DELETE_FILE_THRESHOLD=$((15 * 1024 * 1024)) #15Mb
 CHECK_PATH="/mnt/restore/VIDEO/_check/"
 
 # Folder store mp4 video
-MP4_PATH="/mnt/restore/VIDEO/_mp4/"
+MP4_PATH="/mnt/restore/VIDEO/EN-UP/"
 
 # Folder store mov and mxf video file
-MOV_MXF_PATH="/mnt/restore/VIDEO/_transcode/"
+MOV_MXF_PATH="/mnt/restore/VIDEO/_pre-transcode/"
 
 # Folder store processed file and filesize > 1.5G
 XL_FILE_THRESHOLD=$((15 * 1024 * 1024 * 1024 / 10)) #15Gb
-PROCESSED_XL_FILE="/mnt/restore/VIDEO/xl/"
+PROCESSED_XL_FILE="/mnt/restore/VIDEO/_xl/"
 
 # Folder store file that doesn't match any name
 OTHER_PATH="/mnt/restore/VIDEO/_check/"
@@ -271,7 +271,7 @@ find_raw_index() {
 	if [[ "$name" == *"."* ]]; then
 		name=$(echo $name | rev | cut -d'.' -f2- | rev)
 		file_name=$(find "$CHECK_PATH" -type f | sort | head -n 1 | grep "$name")
-		if [ ! -z $file_name ];then
+		if [ ! -z $file_name ]; then
 			# remove extension
 			file_name=$(echo "$file_name" | rev | cut -d'.' -f2- | rev)
 			#get raw index
@@ -438,7 +438,7 @@ order_movie_element() {
 	fi
 
 	# check case conver VJ to NG
-	if [[ $team == *"NG"* ]] && [[ $name == *"-VJ-"* ]];then
+	if [[ $team == *"NG"* ]] && [[ $name == *"-VJ-"* ]]; then
 		desc="$desc"_VJ
 	fi
 
@@ -503,15 +503,15 @@ standardized_name() {
 	name=${name/"VJMASTER"/"_VJMASTER"}
 	name=${name/"VJ-MASTER"/"_VJMASTER"}
 	name=${name/"VJ_MASTER"/"_VJMASTER"}
-	
+
 	name=${name/"VJCLEAN"/"_VJCLEAN"}
 	name=${name/"VJ-CLEAN"/"_VJCLEAN"}
 	name=${name/"VJ_CLEAN"/"_VJCLEAN"}
-	
+
 	name=${name/"VJRAW"/"_VJRAW"}
 	name=${name/"VJ_RAW"/"_VJRAW"}
 	name=${name/"VJ-RAW"/"_VJRAW"}
-	
+
 	name=${name/"_RAW_"/"_"}
 
 	match=$(echo $name | grep -o 'SALEET')
