@@ -3,6 +3,8 @@
 #Script Name    : ZipFilter
 #Description    : This script loop through all zip file in subfolder
 #                 Find the biggest zip file size and copy to targer folder
+#                 
+#                 Support multiple input folder as parameter of command
 #Version        : 1.8
 #Notes          : None                                             
 #Author         : phongtran0715@gmail.com
@@ -13,12 +15,15 @@ GRAY='\033[1;30m'
 NC='\033[0m'
 
 # This folder contain the biggest zip files
+# [V1.8] This variable was move to command parameter
 # DEST_PATH="/mnt/restore/UPLOAD"
 
 # This folder contain zip file that have size less than the biggest size
+# [V1.8] Smaller file will be keep in current folder insteated deleted
 # DELETE_PATH="/mnt/restore/__DELBIG/"
 
 # Max number zip file per output folder
+# [V1.8] This variable was move to command parameter
 # MAX_FILE=200
 
 # This folder contain log file

@@ -3,6 +3,10 @@
 #Script Name    : ZipSun_NoVideo
 #Description    : This script loop through all zip file in sub-folder
 #                 Rename zip file by our rule and move file to target folder
+#                 
+#                 Modified dated time will be use to set new file name
+#                 Datetime will be extracted from zip file or child file inside zip file
+#                 It will make sure datetime always in range : 2013-2019
 #Version        : 8.3.7
 #Notes          : None
 #Author         : phongtran0715@gmail.com
