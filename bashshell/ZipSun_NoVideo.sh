@@ -3,12 +3,12 @@
 #Script Name    : ZipSun_NoVideo
 #Description    : This script loop through all zip file in sub-folder
 #                 Rename zip file by our rule and move file to target folder
-#Version        : 8.3.6
+#Version        : 8.3.7
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="ZipSun_NoVideo - 8.3.6"
+_VERSION="ZipSun_NoVideo - 8.3.7"
 
 # Set log level msg/dbg
 _DEBUG="dbg"
@@ -311,6 +311,35 @@ correct_desc_info() {
 	echo $result
 }
 
+find_date_from_child_file(){
+	local zip_file=$1
+	date_info=$(unzip -l "$zip_file" | awk '{print $2}')
+
+	while IFS= read -r d; do
+		match=$(echo $d | grep -oE '[0-9]{2}-[0-9]{2}-[0-9]{4}')
+		if [ ! -z "$match" ]; then
+			# get year
+			year=$(echo "$d" | cut -d '-' -f 3)
+			year=${year: -2}
+			month=$(echo "$d" | cut -d '-' -f 2)
+			day=$(echo "$d" | cut -d '-' -f 1)
+			if [ $year -le 19 ] && [ $year -ge 13 ];then
+				result=$day$month$year
+				break
+			fi
+		fi
+	done < <(printf '%s\n' "$date_info")
+
+	if [ -z $result ];then
+		if [[ -f "$full_path" ]]; then
+			epoch_time=$(stat -c "%Y" -- "$zip_file")
+		fi
+		if [ ! -z $epoch_time ]; then result=$(date -d @$epoch_time +"%d%m%y"); fi
+	else
+		echo "$result"
+	fi
+}
+
 order_zip_element() {
 	local old_name="$1"
 	local name="$2"
@@ -341,13 +370,12 @@ order_zip_element() {
 		yy=${date:4:2}
 		if [ $mm -gt 12 ]; then date=$mm$dd$yy; fi
 	else
+		# get date from child file inside zip file
 		full_path="$path/$old_name"
-		if [[ -f "$full_path" ]]; then
-			epoch_time=$(stat -c "%Y" -- "$full_path")
-		fi
-		if [ ! -z $epoch_time ]; then date=$(date -d @$epoch_time +"%d%m%y"); fi
+		date=$(find_date_from_child_file $full_path)
 	fi
 	echo "$date" >"$gzip_date_path"
+	echo "$date" > app.log
 
 	IFS='-' read -ra arr <<<"$name"
 	count=${#arr[@]}
@@ -391,7 +419,9 @@ order_zip_element() {
 	fi
 	echo "$name" >"$gzip_name_path"
 	#append date
-	if [ -z $date ]; then date=$(date +'%m%d%y'); fi
+	if [ -z "$date" ];then 
+		date=$(date +'%m%d%y')
+	fi
 	name="$name-$date"
 
 	echo $name
