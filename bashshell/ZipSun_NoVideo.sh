@@ -325,8 +325,8 @@ find_date_from_child_file(){
 			# get year
 			year=$(echo "$d" | cut -d '-' -f 3)
 			year=${year: -2}
-			month=$(echo "$d" | cut -d '-' -f 2)
-			day=$(echo "$d" | cut -d '-' -f 1)
+			month=$(echo "$d" | cut -d '-' -f 1)
+			day=$(echo "$d" | cut -d '-' -f 2)
 			if [ $year -le 19 ] && [ $year -ge 13 ];then
 				result=$day$month$year
 				break
@@ -379,7 +379,6 @@ order_zip_element() {
 		date=$(find_date_from_child_file $full_path)
 	fi
 	echo "$date" >"$gzip_date_path"
-	echo "$date" > app.log
 
 	IFS='-' read -ra arr <<<"$name"
 	count=${#arr[@]}
