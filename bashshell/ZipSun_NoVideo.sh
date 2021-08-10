@@ -7,12 +7,12 @@
 #                 Modified dated time will be use to set new file name
 #                 Datetime will be extracted from zip file or child file inside zip file
 #                 It will make sure datetime always in range : 2013-2019
-#Version        : 8.3.7
+#Version        : 8.4.0
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="ZipSun_NoVideo - 8.3.7"
+_VERSION="ZipSun_NoVideo - 8.4.0"
 
 # Set log level msg/dbg
 _DEBUG="dbg"
@@ -45,17 +45,17 @@ SUFFIX_LISTS=("SUB" "FINAL" "YT" "CLEAN" "TW" "TWITTER" "FB" "FACEBOOK" "YT" "YO
 
 # This folder store zip, video file that have size greater than threshold
 # and have language is AR/EN/ES/FR
-AR_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-AR/"
-EN_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-EN/"
-ES_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-ES/"
-FR_OVER_DIR="FR-OVER"
+# AR_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-AR/"
+# EN_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-EN/"
+# ES_OVER_DIR="/mnt/restore/S3UPLOAD/TEMP-ES/"
+# FR_OVER_DIR="FR-OVER"
 
 # This folder store zip, video file that have size smaller than threshold
 # and have language is AR/EN/ES/FR
-AR_UNDER_DIR="/mnt/restore/S3UPLOAD/AR-UNDER/"
-EN_UNDER_DIR="/mnt/restore/S3UPLOAD/EN-UNDER/"
-ES_UNDER_DIR="/mnt/restore/S3UPLOAD/ES-UNDER/"
-FR_UNDER_DIR="FR-UNDER"
+# AR_UNDER_DIR="/mnt/restore/S3UPLOAD/AR-UNDER/"
+# EN_UNDER_DIR="/mnt/restore/S3UPLOAD/EN-UNDER/"
+# ES_UNDER_DIR="/mnt/restore/S3UPLOAD/ES-UNDER/"
+# FR_UNDER_DIR="FR-UNDER"
 
 # This folder store zip file that have language is mismatch with default language
 # default language is parameter from command line (option -l)
@@ -84,10 +84,10 @@ DATABASE_ES="/mnt/restore/es_db.csv"
 #Zip file size threshold
 # Every zip file have size greater than threshold will be moved to over language folder
 # Every zip file have size greater than threshold will be moved to under language folder
-MAX_SIZE_THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
+# MAX_SIZE_THRESHOLD=$((150 * 1024 * 1024 * 1024)) #150Gb
 
 # Every zip file have size smaller than delete threshold will boe moved to delete folder
-DELETE_THRESHOLD=$((25 * 1024 * 1024)) #25Mb
+DELETE_THRESHOLD=$((1 * 1024 * 1024)) #25Mb
 
 TARGET_DIR_LIST=("$AR_OVER_DIR" "$EN_OVER_DIR" "$ES_OVER_DIR" "$FR_OVER_DIR"
 	"$AR_UNDER_DIR" "$EN_UNDER_DIR" "$ES_UNDER_DIR" "$FR_UNDER_DIR"
@@ -254,32 +254,32 @@ convert_size() {
 	printf %s\\n $1 | LC_NUMERIC=en_US numfmt --to=iec
 }
 
-get_target_folder() {
-	lang=$1
-	size=$2
-	if [ $size -gt $MAX_SIZE_THRESHOLD ]; then
-		if [[ $lang == "AR" ]]; then
-			result="$AR_OVER_DIR"
-		elif [[ $lang == "EN" ]]; then
-			result="$EN_OVER_DIR"
-		elif [[ $lang == "ES" ]]; then
-			result="$ES_OVER_DIR"
-		elif [[ $lang == "FR" ]]; then
-			result="$FR_OVER_DIR"
-		else result="$OTHER_DIR"; fi
-	else
-		if [[ $lang == "AR" ]]; then
-			result="$AR_UNDER_DIR"
-		elif [[ $lang == "EN" ]]; then
-			result="$EN_UNDER_DIR"
-		elif [[ $lang == "ES" ]]; then
-			result="$ES_UNDER_DIR"
-		elif [[ $lang == "FR" ]]; then
-			result="$FR_UNDER_DIR"
-		else result="$OTHER_DIR"; fi
-	fi
-	echo $result
-}
+# get_target_folder() {
+# 	lang=$1
+# 	size=$2
+# 	if [ $size -gt $MAX_SIZE_THRESHOLD ]; then
+# 		if [[ $lang == "AR" ]]; then
+# 			result="$AR_OVER_DIR"
+# 		elif [[ $lang == "EN" ]]; then
+# 			result="$EN_OVER_DIR"
+# 		elif [[ $lang == "ES" ]]; then
+# 			result="$ES_OVER_DIR"
+# 		elif [[ $lang == "FR" ]]; then
+# 			result="$FR_OVER_DIR"
+# 		else result="$OTHER_DIR"; fi
+# 	else
+# 		if [[ $lang == "AR" ]]; then
+# 			result="$AR_UNDER_DIR"
+# 		elif [[ $lang == "EN" ]]; then
+# 			result="$EN_UNDER_DIR"
+# 		elif [[ $lang == "ES" ]]; then
+# 			result="$ES_UNDER_DIR"
+# 		elif [[ $lang == "FR" ]]; then
+# 			result="$FR_UNDER_DIR"
+# 		else result="$OTHER_DIR"; fi
+# 	fi
+# 	echo $result
+# }
 
 correct_desc_info() {
 	local desc=$1
@@ -372,7 +372,7 @@ order_zip_element() {
 		dd=${date:0:2}
 		mm=${date:2:2}
 		yy=${date:4:2}
-		if [ $mm -gt 12 ]; then date=$mm$dd$yy; fi
+		if [ $mm -gt 12 ]; then date=$dd$mm$yy; fi
 	else
 		# get date from child file inside zip file
 		full_path="$path/$old_name"
@@ -652,12 +652,13 @@ check_zip_file() {
 		return
 	fi
 
-	if [ $zipSize -gt $MAX_SIZE_THRESHOLD ]; then
-		target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
-		printf "${GRAY}($index)Zip\t: %-50s - Size: %s - Exceed max file size threshold ${NC}\n" "$old_zip_name" "$(convert_size $zipSize)"
-		echo -e "Moved to : $target_folder"
-		echo "$old_no_ext,over $(convert_size $MAX_SIZE_THRESHOLD),$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder" >>$log_path
-	fi
+	# if [ $zipSize -gt $MAX_SIZE_THRESHOLD ]; then
+	# 	target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
+	# 	printf "${GRAY}($index)Zip\t: %-50s - Size: %s - Exceed max file size threshold ${NC}\n" "$old_zip_name" "$(convert_size $zipSize)"
+	# 	echo -e "Moved to : $target_folder"
+	# 	echo "$old_no_ext,over $(convert_size $MAX_SIZE_THRESHOLD),$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder" >>$log_path
+	# 	return
+	# fi
 
 	#  validate zip file integrity
 	if [[ $validate_flag == "enable" ]]; then
@@ -687,9 +688,9 @@ check_zip_file() {
 	zip_dir_name=$(dirname "$file_path")
 
 	# move to target folder
-	target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
-	echo -e "Size\t:" "$(convert_size $zipSize)" " - Moved to : $target_folder"
-	echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder" >>$log_path
+	# target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
+	# echo -e "Size\t:" "$(convert_size $zipSize)" " - Moved to : $target_folder"
+	echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$(realpath "$zip_dir_name")" >>$log_path
 	echo "$new_no_ext" >>$zip_log_path
 }
 
@@ -740,14 +741,14 @@ process_zip_file() {
 		return
 	fi
 
-	if [ $zipSize -gt $MAX_SIZE_THRESHOLD ]; then
-		target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
-		printf "${GRAY}($index)Zip\t: %-50s - Size: %s - Exceed max file size threshold ${NC}\n" "$old_zip_name" "$(convert_size $zipSize)"
-		echo -e "Moved to : $target_folder"
-		echo "$old_no_ext,over $(convert_size $MAX_SIZE_THRESHOLD),$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder" >>$log_path
-		mv -f "$file_path" "$target_folder"
-		return
-	fi
+	# if [ $zipSize -gt $MAX_SIZE_THRESHOLD ]; then
+	# 	target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
+	# 	printf "${GRAY}($index)Zip\t: %-50s - Size: %s - Exceed max file size threshold ${NC}\n" "$old_zip_name" "$(convert_size $zipSize)"
+	# 	echo -e "Moved to : $target_folder"
+	# 	echo "$old_no_ext,over $(convert_size $MAX_SIZE_THRESHOLD),$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder" >>$log_path
+	# 	mv -f "$file_path" "$target_folder"
+	# 	return
+	# fi
 
 	#  validate zip file integrity
 	if [[ $validate_flag == "enable" ]]; then
@@ -781,10 +782,10 @@ process_zip_file() {
 	fi
 
 	# move to target folder
-	target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
-	echo -e "Size\t: " "$(convert_size $zipSize)" " - Moving to : $target_folder"
-	mv -f "$zip_dir_name/$new_zip_name" "$target_folder"
-	file_path="$target_folder/$new_zip_name"
+	# target_folder=$(get_target_folder ${new_no_ext:0:2} $zipSize)
+	# echo -e "Size\t: " "$(convert_size $zipSize)" " - Moving to : $target_folder"
+	# mv -f "$zip_dir_name/$new_zip_name" "$target_folder"
+	# file_path="$target_folder/$new_zip_name"
 	echo "$old_no_ext,$new_no_ext,$(convert_size $zipSize),,$(realpath "$zip_dir_name"),$target_folder" >>$log_path
 	zip_dir_name=$(dirname "$file_path")
 	echo "$new_no_ext" >>$zip_log_path
@@ -808,39 +809,39 @@ main() {
 
 	# validate configuration value
 	validate=0
-	if [ ! -d "$AR_OVER_DIR" ]; then
-		printf "${YELLOW}Warning! Directory doesn't existed [AR_OVER_DIR][$AR_OVER_DIR]${NC}\n"
-		validate=1
-	fi
-	if [ ! -d "$EN_OVER_DIR" ]; then
-		printf "${YELLOW}Warning! Directory doesn't existed [EN_OVER_DIR][$EN_OVER_DIR]${NC}\n"
-		validate=1
-	fi
-	if [ ! -d "$ES_OVER_DIR" ]; then
-		printf "${YELLOW}Warning! Directory doesn't existed [ES_OVER_DIR][$ES_OVER_DIR]${NC}\n"
-		validate=1
-	fi
-	if [ ! -d "$FR_OVER_DIR" ]; then
-		printf "${YELLOW}Warning! Directory doesn't existed [FR_OVER_DIR][$FR_OVER_DIR]${NC}\n"
-		validate=1
-	fi
+	# if [ ! -d "$AR_OVER_DIR" ]; then
+	# 	printf "${YELLOW}Warning! Directory doesn't existed [AR_OVER_DIR][$AR_OVER_DIR]${NC}\n"
+	# 	validate=1
+	# fi
+	# if [ ! -d "$EN_OVER_DIR" ]; then
+	# 	printf "${YELLOW}Warning! Directory doesn't existed [EN_OVER_DIR][$EN_OVER_DIR]${NC}\n"
+	# 	validate=1
+	# fi
+	# if [ ! -d "$ES_OVER_DIR" ]; then
+	# 	printf "${YELLOW}Warning! Directory doesn't existed [ES_OVER_DIR][$ES_OVER_DIR]${NC}\n"
+	# 	validate=1
+	# fi
+	# if [ ! -d "$FR_OVER_DIR" ]; then
+	# 	printf "${YELLOW}Warning! Directory doesn't existed [FR_OVER_DIR][$FR_OVER_DIR]${NC}\n"
+	# 	validate=1
+	# fi
 
-	if [ ! -d "$AR_UNDER_DIR" ]; then
-		printf "${YELLOW}Warning! Directory doesn't existed [AR_UNDER_DIR][$AR_UNDER_DIR]${NC}\n"
-		validate=1
-	fi
-	if [ ! -d "$EN_UNDER_DIR" ]; then
-		printf "${YELLOW}Warning! Directory doesn't existed [EN_UNDER_DIR][$EN_UNDER_DIR]${NC}\n"
-		validate=1
-	fi
-	if [ ! -d "$ES_UNDER_DIR" ]; then
-		printf "${YELLOW}Warning! Directory doesn't existed [ES_UNDER_DIR][$ES_UNDER_DIR]${NC}\n"
-		validate=1
-	fi
-	if [ ! -d "$FR_UNDER_DIR" ]; then
-		printf "${YELLOW}Warning! Directory doesn't existed [FR_UNDER_DIR][$FR_UNDER_DIR]${NC}\n"
-		validate=1
-	fi
+	# if [ ! -d "$AR_UNDER_DIR" ]; then
+	# 	printf "${YELLOW}Warning! Directory doesn't existed [AR_UNDER_DIR][$AR_UNDER_DIR]${NC}\n"
+	# 	validate=1
+	# fi
+	# if [ ! -d "$EN_UNDER_DIR" ]; then
+	# 	printf "${YELLOW}Warning! Directory doesn't existed [EN_UNDER_DIR][$EN_UNDER_DIR]${NC}\n"
+	# 	validate=1
+	# fi
+	# if [ ! -d "$ES_UNDER_DIR" ]; then
+	# 	printf "${YELLOW}Warning! Directory doesn't existed [ES_UNDER_DIR][$ES_UNDER_DIR]${NC}\n"
+	# 	validate=1
+	# fi
+	# if [ ! -d "$FR_UNDER_DIR" ]; then
+	# 	printf "${YELLOW}Warning! Directory doesn't existed [FR_UNDER_DIR][$FR_UNDER_DIR]${NC}\n"
+	# 	validate=1
+	# fi
 
 	if [ ! -d "$AR_HOLD_DIR" ]; then
 		printf "${YELLOW}Warning! Directory doesn't existed [AR_HOLD_DIR][$AR_HOLD_DIR]${NC}\n"
