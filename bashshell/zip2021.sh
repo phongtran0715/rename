@@ -5,6 +5,7 @@ _VERSION="ZipFolder - 1.5"
 # Root directory needed to run zip command
 ROOT_PATH=(
 	"/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus"
+	"/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus_2"
 )
 
 # Directory hold unsuccesful zip folder
@@ -24,6 +25,8 @@ ARCHIVE_PATH="/mnt/ajplus/_OUT_Box/Zip_7day_Archive/"
 
 # File size threshold value
 FILE_SIZE_THRESHOLD=$((50 * 1024 * 1024)) #50Mb
+
+LOCK_FILE="/tmp/zip2021.lock"
 
 ################################################################################
 # Validate input argument                                                      #
@@ -142,7 +145,7 @@ zip_execute() {
 			get_info_hierarchy "$1/$DIR_NAME" "$LOG_FILE"
 
 			echo "========== COMPRESS INFO START ==========" >>"$LOG_FILE"
-			echo "($TOTAL_DIR)Processing : $(du -sh $1/$DIR_NAME)" | tee -a "$LOG_FILE"
+			echo "($TOTAL_DIR)Processing : $(du -sh "$1/$DIR_NAME")" | tee -a "$LOG_FILE"
 			echo "["$(date +"%m-%d-%Y %T %Z")"] Start compress" >>"$LOG_FILE"
 			zip -r $ZIP_FILE "$f" >/dev/null 2>&1
 
@@ -192,11 +195,26 @@ zip_execute() {
 	done
 }
 
+is_script_running(){
+	if [ -f "$LOCK_FILE" ]; then
+		return 0 #true
+	else
+		return 1 #false
+	fi
+}
+
 ################################################################################
 # Main program                                                                 #
 ################################################################################
 main() {
 	echo "Script version : $_VERSION"
+	# Check the script is running or not
+	if is_script_running; then
+		echo "Previous script is still running.Stop processing!"
+		return
+	fi
+
+	touch "$LOCK_FILE"
 	for i in "${ROOT_PATH[@]}"; do
 		echo "===> Zipbot start "
 		echo "Working directory:" $i 
@@ -204,6 +222,8 @@ main() {
 		echo "<=== Zipbot finish. "
 		echo
 	done
+
+	rm -rf "$LOCK_FILE"
 	echo
 	echo "=============="
 	echo "Total folder zipped : " $((TOTAL_DIR - FALSE_DIR))
