@@ -1,6 +1,6 @@
 #!/bin/bash
 
-_VERSION="ZipFolder - 1.4"
+_VERSION="ZipFolder - 1.5"
 
 # Root directory needed to run zip command
 ROOT_PATH=(
@@ -19,10 +19,10 @@ UNDER_THRESHOLD_PATH="/mnt/ajplus/_OUT_Box/Upload_To_DMV/"
 # Log file directory
 LOG_PATH="/mnt/ajplus/Admin/CMS/zipX/Logs"
 
-# Directory hold all zipped file
+# Directory hold all input folders
 ARCHIVE_PATH="/mnt/ajplus/_OUT_Box/Zip_7day_Archive/"
 
-# FIle size threshold value
+# File size threshold value
 FILE_SIZE_THRESHOLD=$((50 * 1024 * 1024)) #50Mb
 
 ################################################################################
@@ -30,8 +30,25 @@ FILE_SIZE_THRESHOLD=$((50 * 1024 * 1024)) #50Mb
 ################################################################################
 [ -z "$ROOT_PATH" ] && echo "Missing root folder path " && exit
 [ -z "$FAIL_PATH" ] && echo "Missing fail folder path " && exit
-[ -z "$OVER_THRESHOLD_PATH" ] && echo "Missing over Threshold folder path " && exit
-[ -z "$UNDER_THRESHOLD_PATH" ] && echo "Missing under Threshold folder path " && exit
+[ -z "$OVER_THRESHOLD_PATH" ] && echo "Missing over threshold folder path " && exit
+[ -z "$UNDER_THRESHOLD_PATH" ] && echo "Missing under threshold folder path " && exit
+
+helpFunction() {
+	echo ""
+	echo "Script version : $_VERSION"
+	echo "Usage: $0 [option] "
+	echo -e "Example : ./zip2021.sh"
+	echo -e "option:"
+	echo -e "\t-v Validate zip file before processing (yes/no). Default is no"
+	exit 1
+}
+
+while getopts "v:" opt; do
+	case "$opt" in
+	v) validate_flag="$OPTARG" ;;
+	?) helpFunction ;;
+	esac
+done
 
 archive_folder() {
 	local origin_folder="$1"
@@ -89,10 +106,15 @@ convert_size() {
 }
 
 validate_zip() {
-	echo -e "Validating zip file : $file"
 	local file_path="$1"
+	echo -e "Validating zip file : $file_path"
 	result=$(zip -T "$file_path") >/dev/null
 	echo "$result"
+}
+
+get_folder_size(){
+	local folder="$1"
+	echo $(stat -c%s "$1")
 }
 
 TOTAL_DIR=0
@@ -120,17 +142,23 @@ zip_execute() {
 			get_info_hierarchy "$1/$DIR_NAME" "$LOG_FILE"
 
 			echo "========== COMPRESS INFO START ==========" >>"$LOG_FILE"
-			echo "($TOTAL_DIR)Folder : $1/$DIR_NAME" | tee -a "$LOG_FILE"
+			echo "($TOTAL_DIR)Processing : $(du -sh $1/$DIR_NAME)" | tee -a "$LOG_FILE"
 			echo "["$(date +"%m-%d-%Y %T %Z")"] Start compress" >>"$LOG_FILE"
 			zip -r $ZIP_FILE "$f" >/dev/null 2>&1
 
 			if [ $? -eq 0 ]; then
 				FILE_SIZE=$(stat -c%s "$ZIP_FILE")
-				echo "Zip successful - Size : $(convert_size $FILE_SIZE)"
-				echo "Validating zip file"
-				is_valid=$(validate_zip "$ZIP_FILE")
+				echo "Zip successfully processed - Output file size : $(convert_size $FILE_SIZE)"
+				if [[ $validate_flag == "yes" ]]; then
+					is_valid=$(validate_zip "$ZIP_FILE")
+				else
+					is_valid="OK"
+				fi
+
 				if [[ $is_valid == *"OK"* ]]; then
-					echo -e "OK!Zip file is valid."
+					if [[ $validate_flag == "yes" ]]; then
+						echo -e "Zip file is valid."
+					fi
 					echo "$1/$DIR_NAME, $STANDARD_DIR_NAME".zip, " $(convert_size $TOTAL_ZIP_SIZE)" >>"$SUMMARY_LOG"
 					TOTAL_ZIP_SIZE=$(($TOTAL_ZIP_SIZE + $FILE_SIZE))
 					if [ $FILE_SIZE -ge $FILE_SIZE_THRESHOLD ]; then
@@ -170,9 +198,10 @@ zip_execute() {
 main() {
 	echo "Script version : $_VERSION"
 	for i in "${ROOT_PATH[@]}"; do
-		echo "===> Zipbot start work on directory : " $i
+		echo "===> Zipbot start "
+		echo "Working directory:" $i 
 		zip_execute $i
-		echo "<=== Zipbot finish directory : " $i
+		echo "<=== Zipbot finish. "
 		echo
 	done
 	echo
