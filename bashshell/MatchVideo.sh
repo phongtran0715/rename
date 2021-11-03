@@ -4,12 +4,12 @@
 #Description    : Find all video in source folder, rename file (same ZipSun rule)
 #               move file to target folder
 #               Rename and move file to destination folder
-#Version        : 2.4
+#Version        : 2.5
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="MatchVideoScript - 2.4"
+_VERSION="MatchVideoScript - 2.5"
 
 # Log color code
 RED='\033[0;31m'
@@ -39,11 +39,23 @@ NEGLECTS_KEYWORD=("V1" "V2" "V3" "V4" "SQ" "-SW-" "-NA-" "-CL-" "FYT" "FTY" "SHO
 # Only process video that have this keyword in filename
 SUFFIX_LISTS=("SUB" "FINAL" "CLEAN" "TW" "TWITTER" "FB" "FACEBOOK" "YT" "YOUTUBE" "IG" "INSTAGRAM")
 
+# List prefix keyword in video file name
+# Only process video that have this keyword in filename
+PREFIX_LISTS=("EN-NR" "EN-CT" "AR-RT" "AJE-ONL" "AJA-DNR" "AJD-DGT" "AJB-DGT")
+
 #  Delete file that contain this keyword in file name
 DELETE_KEYWORD=("RECORD" "-VO" "-CAM" "-TAKE" "TEST")
 
 # File name contain this kewords will not be deleted
-WHITE_LIST_KEYWORD=("CAMBRIDGEXAMS" "CAMPDAVIDACCORDS" "WASHINGDISHESRECORD" "CONFEDERATESTATUE" "HOTTESTPEPPER" "VOICEWHEELCHAIR" "PROTEST" "CAMBODIA" "VOTELOCAL")
+WHITE_LIST_KEYWORD=("CAMBRIDGEXAMS" 
+	"CAMPDAVIDACCORDS" 
+	"WASHINGDISHESRECORD" 
+	"CONFEDERATESTATUE" 
+	"HOTTESTPEPPER" 
+	"VOICEWHEELCHAIR" 
+	"PROTEST" 
+	"CAMBODIA" 
+	"VOTELOCAL")
 
 # Log folder store application running log, report log
 LOG_PATH="/mnt/ajplus/Admin/"
@@ -96,6 +108,8 @@ DATABASE_FULL="/mnt/restore/full_db.csv"
 DATABASE_AR="/mnt/restore/ar_db.csv"
 DATABASE_EN="/mnt/restore/en_db.csv"
 DATABASE_ES="/mnt/restore/es_db.csv"
+
+LOCK_FILE="/tmp/matchvideo.lock"
 
 helpFunction() {
 	echo ""
@@ -656,11 +670,22 @@ is_contain_whitelist() {
 	return 1 #false
 }
 
-is_contain_process_keyword() {
+is_contain_suffix_keyword() {
 	local file_name="$1"
 	file_name=$(echo ${file_name^^})
 	for i in "${SUFFIX_LISTS[@]}"; do
 		if [[ $file_name == *"$i"* ]]; then
+			return 0 #true
+		fi
+	done
+	return 1 #false
+}
+
+is_contain_prefix_keyword() {
+	local file_name="$1"
+	file_name=$(echo ${file_name^^})
+	for i in "${PREFIX_LISTS[@]}"; do
+		if [[ $file_name == "$i"* ]]; then
 			return 0 #true
 		fi
 	done
@@ -691,8 +716,18 @@ dummy_test() {
 			fi
 		fi
 
-		# Check file name contain valid keyword
-		if is_contain_process_keyword "$old_name"; then
+		# Check file name contain prefix keyword
+		if is_contain_prefix_keyword "$old_name"; then
+			echo ""
+		else
+			echo "File name doesn't contain valid prefix keyword'"
+			echo "Move to : $OTHER_PATH"
+			CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT + 1))
+			continue
+		fi
+		
+		# Check file name contain suffix keyword
+		if is_contain_suffix_keyword "$old_name"; then
 			new_name=$(standardized_name "$old_name")
 			echo "New name : $new_name"
 			target_folder=$(get_target_folder_by_ext "$line")
@@ -765,8 +800,22 @@ process_match_video() {
 		fi
 	fi
 
+	# Check file name contain prefix keyword
+	if is_contain_prefix_keyword "$old_name"; then
+		echo ""
+	else
+		echo "File name doesn't contain valid prefix keyword'"
+		echo "Copy to : $OTHER_PATH"
+		if [[ $mode == "RUN" ]]; then
+			mv -f "$file_path" "$OTHER_PATH"
+		fi
+		CHECK_FILE_COUNT=$(($CHECK_FILE_COUNT + 1))
+		CHECK_SIZE_COUNT=$(($CHECK_SIZE_COUNT + $size))
+		return
+	fi
+
 	# Check file name contain valid keyword
-	if is_contain_process_keyword "$old_name"; then
+	if is_contain_suffix_keyword "$old_name"; then
 		new_name=$(standardized_name "$file_path")
 		echo "New name : $new_name"
 		if [[ $mode == "RUN" ]]; then
@@ -889,7 +938,7 @@ execute() {
 		echo "List input directory : $list_dir"
 		echo "-------------------------------"
 		echo "Finding video in folder ..."
-		video_files=$(find $list_dir -type f \( -iname \*.mov -o -iname \*.mxf -o -iname \*.mp4 \) | head -n $MAX_FILE_PROCESS)
+		video_files=$(find $list_dir -type f \( -iname \*.mov -o -iname \*.mxf -o -iname \*.mp4 -o -iname \*.zip \) | head -n $MAX_FILE_PROCESS)
 		while IFS= read -r file; do
 			if [ ! -f "$file" ]; then
 				continue
@@ -929,7 +978,21 @@ execute() {
 	printf "%10s %-15s : $NEW_VIDEO_NAME_FILE \n" "-" "Video new name file"
 }
 
+is_script_running(){
+	if [ -f "$LOCK_FILE" ]; then
+		return 0 #true
+	else
+		return 1 #false
+	fi
+}
+
 main() {
+	# Check the script is running or not
+	if is_script_running; then
+		echo "Previous script is still running.Stop processing!"
+		return
+	fi
+
 	echo "Script version : $_VERSION"
 	if [ ! -f "$COUNTRY_FILE" ]; then
 		echo "Not found country file : " $COUNTRY_FILE
@@ -942,6 +1005,7 @@ main() {
 
 	validate_code=$(validate)
 
+	touch "$LOCK_FILE"
 	if [ ! -z "$REPEAT_TIME" ]; then
 		echo "Run the script in loop mode"
 		while true; do
@@ -964,6 +1028,7 @@ main() {
 		echo "Run the script in one time mode"
 		execute
 	fi
+	rm -rf "$LOCK_FILE"
 }
 
 log_file="$LOG_PATH/matching_video_log_"$(date +%d%m%y_%H%M)".txt"
