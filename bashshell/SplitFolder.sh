@@ -2,25 +2,45 @@
 ###################################################################
 #Script Name    : SpiltFolder
 #Description    : Split parent folers based on folder zise and zip child folders
-#Version        : 1.0
+#Version        : 1.1
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="SplitFolder - 1.0"
+_VERSION="SplitFolder - 1.1"
+
+# Root directory needed to run zip command
+ROOT_PATH=(
+	"/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus"
+)
+
+# Directory hold unsuccesful zip folder
+FAIL_PATH="/mnt/ajplus/Admin/CMS/zipX/Failed/"
+
+# Directory hold all input folders
+ARCHIVE_PATH="/mnt/ajplus/_OUT_Box/Zip_7day_Archive/"
 
 # Log folder store application running log, report log
 LOG_PATH="/mnt/ajplus/Admin/"
+
+# folder size threshold value
+FOLDER_SIZE_THRESHOLD=$((50 * 1024 * 1024)) #50Mb
+
+# folder stores output zip file
+OUTPUT_PATH="/mnt/ajplus/_OUT_Box/Upload_To_DMV/"
+
+#This folder stores all folders that have size small than threshold size
+DELETED_DIR="/mnt/restore/__DEL/"
 
 #  Report files
 REPORT_FILE="$LOG_PATH/matched_video_report_"$(date +%d%m%y_%H%M)".csv"
 NEW_VIDEO_NAME_FILE="$LOG_PATH/new_video_name_"$(date +%d%m%y_%H%M)".txt"
 
-
-TOTAL_SUB_FOLDER=0
+TOTAL_FOLDER=0
+TOTAL_PROCESSED_FOLDER=0
+TOTAL_FAILED_FOLDER=0
+TOTAL_IGNORED_FOLDER=0
 DIVIDE_BASE_SIZE=1g #1G
-
-OUTPUT_PATH="/mnt/restore/ZIP_FOLDER/"
 
 function DEBUG() {
   [ "$_DEBUG" == "dbg" ] && $@ || :
@@ -38,38 +58,79 @@ helpFunction() {
   exit 1
 }
 
+################################################################################
+# Main program                                                                 #
+################################################################################
+
 main(){
-	INPUT=$1
 	echo "Script version : $_VERSION"
-	if [[ -d "$INPUT" ]]; then
-		echo "Input folder : [$INPUT]"
+	
+  # validate configuration value
+  validate=0
+  if [ ! -d "$FAIL_PATH" ]; then
+    printf "Warning! Directory doesn't existed [FAIL_PATH][$FAIL_PATH]\n"
+    validate=1
+  fi
+
+  if [ ! -d "$ARCHIVE_PATH" ]; then
+    printf "Warning! Directory doesn't existed [ARCHIVE_PATH][$ARCHIVE_PATH]\n"
+    validate=1
+  fi
+
+  if [ ! -d "$LOG_PATH" ]; then
+    printf "Warning! Directory doesn't existed [LOG_PATH][$LOG_PATH]\n"
+    validate=1
+  fi
+
+  if [ ! -d "$OUTPUT_PATH" ]; then
+    printf "Warning! Directory doesn't existed [OUTPUT_PATH][$OUTPUT_PATH]\n"
+    validate=1
+  fi
+
+  if [ ! -d "$DELETED_DIR" ]; then
+    printf "Warning! Directory doesn't existed [DELETED_DIR][$DELETED_DIR]\n"
+    validate=1
+  fi
+
+	if [[ -d "$ROOT_PATH" ]]; then
+		echo "Input folder : [$ROOT_PATH]"
 	else
 		echo "Error! Input folder is invalid"
 		helpFunction
 		return
 	fi
 
-	sub_dirs=$(find "$INPUT" -maxdepth 1 -type d | tail -n +2)
+	sub_dirs=$(find "$ROOT_PATH" -maxdepth 1 -type d | tail -n +2)
 	while IFS= read -r dir; do
+		TOTAL_FOLDER=$(($TOTAL_FOLDER + 1))
+		echo
 		echo "*** Processing sub folder ($(du -sh $dir | awk '{printf $1}')): $dir"
-		TOTAL_SUB_FOLDER=$(($TOTAL_SUB_FOLDER + 1))
+		folder_size=$(du -s $dir | awk '{printf $1}')
+		if [ $folder_size -lt $FOLDER_SIZE_THRESHOLD ]; then
+			echo "Folder size is smaller then threshold. Ignore!"
+			TOTAL_IGNORED_FOLDER=$(($TOTAL_IGNORED_FOLDER + 1))
+			echo "Moving the directory to deleted path"
+			cp -rf "$dir" "$DELETED_DIR"
+			rm -rf "$dir"
+			continue
+		fi
 		# remove space from dir name
 		folder_name=$(echo $(basename $dir) | tr -d ' ')
 		# create output foler
 		mkdir -p "$OUTPUT_PATH"$folder_name 
 
-
 		output_folder="$OUTPUT_PATH$folder_name/"
 		zip_file="$dir/$folder_name".zip
 		zip -r $zip_file "$dir" >/dev/null 2>&1
 		if [ $? -eq 0 ]; then
+			TOTAL_PROCESSED_FOLDER=$(($TOTAL_PROCESSED_FOLDER + 1))
 			echo "Zip folder successfully"
 			# split zip file to multiple parts
 			zip $zip_file --out $output_folder$folder_name".zip" -s $DIVIDE_BASE_SIZE >/dev/null 2>&1
 			num_child_zip=$(find $output_folder -maxdepth 1 -type f -iname "*.z*" | wc -l)
 			output_file=$output_folder"README.txt"
 
-			echo "The master Adobe folder has been divided into $num_child_zip folders due to zip size" >> $output_file
+			echo "The master Adobe folder has been divided into $num_child_zip folders due to zip size" > $output_file
 			echo "" >> $output_file
 			output_files=$(find $output_folder -maxdepth 1 -type f -iname "*.z*")
 			while IFS= read -r file; do
@@ -80,13 +141,26 @@ main(){
 			echo "cat $folder_name.z* > $folder_name""_final.zip" >> $output_file
 			# delete original zip
 			rm -rf $zip_file
+			# move original folder to archive folder
+			echo "Moving the directory to archive path"
+			cp -rf "$dir" "$ARCHIVE_PATH" 
+			rm -rf "$dir"
 		else
+			TOTAL_FAILED_FOLDER=$(($TOTAL_FAILED_FOLDER + 1))
 			echo "Error! There is an unexpected error when zipping : "$dir
+			echo "Moving the directory to failed path"
+			cp -rf "$dir" "FAIL_PATH"
+			rm -f "$dir"
+
 		fi
 	done < <(printf '%s\n' "$sub_dirs")
 	echo "===================="
-	printf "%10s %-15s : $TOTAL_SUB_FOLDER\n" "-" "Total child folders"
-	printf "%10s %-15s : $log_file \n" "-" "Log file"
+	printf "%10s %-20s : $TOTAL_FOLDER\n" "-" "Total folders"
+	printf "%10s %-20s : $TOTAL_PROCESSED_FOLDER\n" "-" "Processed folders"
+	printf "%10s %-20s : $TOTAL_FAILED_FOLDER\n" "-" "Failed folders"
+	printf "%10s %-20s : $TOTAL_IGNORED_FOLDER\n" "-" "Ignored folders"
+	echo
+	printf "%10s %-20s : $log_file \n" "-" "Log file"
 	echo "===================="
 	echo "Bye"
 }
