@@ -2,16 +2,20 @@
 ###################################################################
 #Script Name    : SpiltFolder
 #Description    : Split parent folers based on folder zise and zip child folders
-#Version        : 1.1
+#Version        : 1.2
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="SplitFolder - 1.1"
+_VERSION="SplitFolder - 1.2"
 
 # Root directory needed to run zip command
+# ROOT_PATH=(
+# 	"/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus"
+# )
+
 ROOT_PATH=(
-	"/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus"
+	"/home/jack/Downloads/Document/EBOOK"
 )
 
 # Directory hold unsuccesful zip folder
@@ -23,7 +27,8 @@ ARCHIVE_PATH="/mnt/ajplus/_OUT_Box/Zip_7day_Archive/"
 # Log folder store application running log, report log
 LOG_PATH="/mnt/ajplus/Admin/"
 
-# folder size threshold value
+# deleted folder size threshold value (equivalent to bytes)
+# input folder with size smaller than the threshold will be deleted
 FOLDER_SIZE_THRESHOLD=$((50 * 1024 * 1024)) #50Mb
 
 # folder stores output zip file
@@ -32,29 +37,24 @@ OUTPUT_PATH="/mnt/ajplus/_OUT_Box/Upload_To_DMV/"
 #This folder stores all folders that have size small than threshold size
 DELETED_DIR="/mnt/restore/__DEL/"
 
-#  Report files
-REPORT_FILE="$LOG_PATH/matched_video_report_"$(date +%d%m%y_%H%M)".csv"
-NEW_VIDEO_NAME_FILE="$LOG_PATH/new_video_name_"$(date +%d%m%y_%H%M)".txt"
-
 TOTAL_FOLDER=0
 TOTAL_PROCESSED_FOLDER=0
 TOTAL_FAILED_FOLDER=0
 TOTAL_IGNORED_FOLDER=0
-DIVIDE_BASE_SIZE=1g #1G
+
+# A large zip file will be splited to multiple part by each DIVIDE_BASE_SIZE
+# Example : 100m (100 megabyte) or 1g (1 gigabyte)
+DIVIDE_BASE_SIZE=100m #1G
 
 function DEBUG() {
   [ "$_DEBUG" == "dbg" ] && $@ || :
 }
 
-convert_size() {
-  printf %s\\n $1 | LC_NUMERIC=en_US numfmt --to=iec
-}
-
 helpFunction() {
   echo ""
   echo "Script version : $_VERSION"
-  echo "Usage: $0  input_folder"
-  echo -e "Example : ./SplitFolder.sh /mnt/restore/VIDEO/"
+  echo "Usage: $0"
+  echo -e "Example : ./SplitFolder.sh"
   exit 1
 }
 
@@ -101,11 +101,12 @@ main(){
 	fi
 
 	sub_dirs=$(find "$ROOT_PATH" -maxdepth 1 -type d | tail -n +2)
+	echo "folder threshold:"$FOLDER_SIZE_THRESHOLD
 	while IFS= read -r dir; do
 		TOTAL_FOLDER=$(($TOTAL_FOLDER + 1))
 		echo
 		echo "*** Processing sub folder ($(du -sh $dir | awk '{printf $1}')): $dir"
-		folder_size=$(du -s $dir | awk '{printf $1}')
+		folder_size=$(du -sb $dir | awk '{printf $1}')
 		if [ $folder_size -lt $FOLDER_SIZE_THRESHOLD ]; then
 			echo "Folder size is smaller then threshold. Ignore!"
 			TOTAL_IGNORED_FOLDER=$(($TOTAL_IGNORED_FOLDER + 1))
@@ -121,7 +122,8 @@ main(){
 
 		output_folder="$OUTPUT_PATH$folder_name/"
 		zip_file="$dir/$folder_name".zip
-		zip -r $zip_file "$dir" >/dev/null 2>&1
+		cd "$dir"
+		zip -r $zip_file ../ >/dev/null 2>&1
 		if [ $? -eq 0 ]; then
 			TOTAL_PROCESSED_FOLDER=$(($TOTAL_PROCESSED_FOLDER + 1))
 			echo "Zip folder successfully"
@@ -149,7 +151,7 @@ main(){
 			TOTAL_FAILED_FOLDER=$(($TOTAL_FAILED_FOLDER + 1))
 			echo "Error! There is an unexpected error when zipping : "$dir
 			echo "Moving the directory to failed path"
-			cp -rf "$dir" "FAIL_PATH"
+			cp -rf "$dir" "$FAIL_PATH"
 			rm -f "$dir"
 
 		fi
