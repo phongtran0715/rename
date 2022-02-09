@@ -2,20 +2,16 @@
 ###################################################################
 #Script Name    : SpiltFolder
 #Description    : Split parent folers based on folder zise and zip child folders
-#Version        : 1.2
+#Version        : 1.3
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="SplitFolder - 1.2"
+_VERSION="SplitFolder - 1.3"
 
-# Root directory needed to run zip command
-# ROOT_PATH=(
-# 	"/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus"
-# )
-
+Root directory needed to run zip command
 ROOT_PATH=(
-	"/home/jack/Downloads/Document/EBOOK"
+	"/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus"
 )
 
 # Directory hold unsuccesful zip folder
@@ -44,7 +40,7 @@ TOTAL_IGNORED_FOLDER=0
 
 # A large zip file will be splited to multiple part by each DIVIDE_BASE_SIZE
 # Example : 100m (100 megabyte) or 1g (1 gigabyte)
-DIVIDE_BASE_SIZE=100m #1G
+DIVIDE_BASE_SIZE=1g #1G
 
 function DEBUG() {
   [ "$_DEBUG" == "dbg" ] && $@ || :
@@ -101,7 +97,6 @@ main(){
 	fi
 
 	sub_dirs=$(find "$ROOT_PATH" -maxdepth 1 -type d | tail -n +2)
-	echo "folder threshold:"$FOLDER_SIZE_THRESHOLD
 	while IFS= read -r dir; do
 		TOTAL_FOLDER=$(($TOTAL_FOLDER + 1))
 		echo
@@ -123,7 +118,7 @@ main(){
 		output_folder="$OUTPUT_PATH$folder_name/"
 		zip_file="$dir/$folder_name".zip
 		cd "$dir"
-		zip -r $zip_file ../ >/dev/null 2>&1
+		zip -r $zip_file ./ >/dev/null 2>&1
 		if [ $? -eq 0 ]; then
 			TOTAL_PROCESSED_FOLDER=$(($TOTAL_PROCESSED_FOLDER + 1))
 			echo "Zip folder successfully"
@@ -140,7 +135,7 @@ main(){
 			done < <(printf '%s\n' "$output_files")
 			echo "" >> $output_file
 			echo "Please download all zip files and merge them by below command:" >> $output_file
-			echo "cat $folder_name.z* > $folder_name""_final.zip" >> $output_file
+			echo "zip -FF $folder_name.zip --out $folder_name""_final.zip" >> $output_file
 			# delete original zip
 			rm -rf $zip_file
 			# move original folder to archive folder
