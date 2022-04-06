@@ -2,12 +2,12 @@
 ###################################################################
 #Script Name    : SpiltFolder
 #Description    : Split parent folers based on folder zise and zip child folders
-#Version        : 1.4
+#Version        : 1.5
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="SplitFolder - 1.4"
+_VERSION="SplitFolder - 1.5"
 
 #Root directory needed to run zip command
 ROOT_PATH=(
@@ -112,17 +112,20 @@ main(){
 		return
 	fi
 
-	# Move file to fase folder
-	find "$ROOT_PATH" -maxdepth 1 -type f -print0 | xargs -0 mv -ft "$FAIL_PATH"
-
+	# Move file to fail folder
+	find "$ROOT_PATH" -maxdepth 1 -type f -print0 | xargs -0 mv -ft "$FAIL_PATH" 2>/dev/null
 	sub_dirs=$(find "$ROOT_PATH" -maxdepth 1 -type d | tail -n +2)
 	while IFS= read -r dir; do
+		if [ -z "$dir" ]; then
+			continue
+		fi
 		TOTAL_FOLDER=$(($TOTAL_FOLDER + 1))
 		echo
-		echo "*** Processing sub folder ($(du -sh $dir | awk '{printf $1}')): $dir"
+		echo "*** Processing sub folder ($(du -sh $dir | awk '{printf $1}')): $(basename $dir)"
 		folder_size=$(du -sb $dir | awk '{printf $1}')
 		folder_name=$(echo $(basename "$dir"))
-		lock_file="/tmp/"$folder_name
+		dir_name=$(echo $(dirname "$dir"))
+		lock_file="/tmp/"$folder_name"_splitfolder.lock"
 
 		if [ -f "$lock_file" ]; then
 			echo "This folder is processing by an another process. Skip!"
@@ -133,27 +136,23 @@ main(){
 
 		if [ $folder_size -lt $FOLDER_SIZE_THRESHOLD ]; then
 			TOTAL_UNDER_FOLDER=$(($TOTAL_UNDER_FOLDER + 1))
-			echo "Copying folder to : $DMV_UNDER"
-			cp -rf "$dir" "$DMV_UNDER"
 
-			zip_file="$DMV_UNDER/$folder_name".zip
+			zip_file="$dir_name/$folder_name".zip
 			echo "Start zipping:$zip_file"
-			zip -r $zip_file "$DMV_UNDER$folder_name" >/dev/null 2>&1
+			zip -r $zip_file "$dir" >/dev/null 2>&1
 			mv -f "$zip_file" "$UPLOAD_DMV_UNDER"
 		else
 			TOTAL_OVER_FOLDER=$(($TOTAL_OVER_FOLDER + 1))
-			echo "Copying folder to : $DMV_OVER"
-			cp -rf "$dir" "$DMV_OVER"
 
-			zip_file="$DMV_OVER/$folder_name".zip
+			zip_file="$dir_name/$folder_name".zip
 			echo "Start zipping:$zip_file"
-			zip -r "$zip_file" "$DMV_OVER$folder_name" >/dev/null 2>&1
+			zip -r "$zip_file" "$dir" >/dev/null 2>&1
 			echo "Moving zip file to: $UPLOAD_DMV_OVER"
 			mv -f "$zip_file" "$UPLOAD_DMV_OVER"
 		fi
 		echo "Moving original folder to backup folder"
 		cp -rf "$dir" "$BACKUP_DIR"
-		# rm -rf "$dir"
+		rm -rf "$dir"
 
 		rm -rf "$lock_file"
 		echo "Finish procesing"
