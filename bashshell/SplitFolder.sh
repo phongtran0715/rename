@@ -2,12 +2,12 @@
 ###################################################################
 #Script Name    : SpiltFolder
 #Description    : Split parent folers based on folder zise and zip child folders
-#Version        : 1.6
+#Version        : 1.7
 #Notes          : None
 #Author         : phongtran0715@gmail.com
 ###################################################################
 
-_VERSION="SplitFolder - 1.6"
+_VERSION="SplitFolder - 1.7"
 
 #Root directory needed to run zip command
 ROOT_PATH=(
@@ -51,8 +51,19 @@ helpFunction() {
   echo "Script version : $_VERSION"
   echo "Usage: $0"
   echo -e "Example : ./SplitFolder.sh"
+  echo -e "option:"
+  echo -e "\t-c clear all lock file (yes/no). Default is no"
   exit 1
 }
+
+while getopts "c:" opt; do
+  case "$opt" in
+  c)
+    clear_lock="$OPTARG"
+    ;;
+  ?) helpFunction ;;
+  esac
+done
 
 # get file size
 get_file_size() {
@@ -121,7 +132,7 @@ main(){
 		lock_file="/tmp/"$folder_name"_splitfolder.lock"
 
 		if [ -f "$lock_file" ]; then
-			echo "This folder is processing by an another process. Skip!"
+			echo "This folder is busy... Skipping!"
 			continue
 		else
 			touch "$lock_file"

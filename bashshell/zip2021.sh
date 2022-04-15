@@ -42,13 +42,18 @@ helpFunction() {
 	echo "Usage: $0 [option] "
 	echo -e "Example : ./zip2021.sh"
 	echo -e "option:"
+	echo -e "\t-c clear all lock file (yes/no). Default is no"
 	echo -e "\t-v Validate zip file before processing (yes/no). Default is no"
 	exit 1
 }
 
-while getopts "v:" opt; do
+while getopts "c:v:" opt; do
 	case "$opt" in
-	v) validate_flag="$OPTARG" ;;
+	v)
+		validate_flag="$OPTARG" ;;
+	c)
+	    clear_lock="$OPTARG"
+	    ;;
 	?) helpFunction ;;
 	esac
 done
@@ -136,16 +141,24 @@ zip_execute() {
 		if [ -d "$f" ]; then
 			TOTAL_DIR=$((TOTAL_DIR + 1))
 			DIR_NAME=$(basename -- "$f")
+			lock_file="/tmp/"$DIR_NAME"_zip2021.lock"
+			
 			# remove space from dir name
 			STANDARD_DIR_NAME=$(echo $DIR_NAME | tr -d ' ')
 			ZIP_FILE="$1/$STANDARD_DIR_NAME".zip
 			LOG_FILE="$LOG_PATH/$STANDARD_DIR_NAME".txt
 			echo "" >"$LOG_FILE"
 
+			echo "($TOTAL_DIR)Processing : $(du -sh "$1/$DIR_NAME")" | tee -a "$LOG_FILE"
+			if [ -f "$lock_file" ]; then
+				echo "This folder is busy... Skipping!"
+				continue
+			else
+				touch "$lock_file"
+			fi
 			get_info_hierarchy "$1/$DIR_NAME" "$LOG_FILE"
 
 			echo "========== COMPRESS INFO START ==========" >>"$LOG_FILE"
-			echo "($TOTAL_DIR)Processing : $(du -sh "$1/$DIR_NAME")" | tee -a "$LOG_FILE"
 			echo "["$(date +"%m-%d-%Y %T %Z")"] Start compress" >>"$LOG_FILE"
 			zip -r $ZIP_FILE "$f" >/dev/null 2>&1
 
@@ -167,16 +180,17 @@ zip_execute() {
 					if [ $FILE_SIZE -ge $FILE_SIZE_THRESHOLD ]; then
 						OVER_THRESHOLD_COUNT=$((OVER_THRESHOLD_COUNT + 1))
 						move_zip_file "$ZIP_FILE" "$OVER_THRESHOLD_PATH" "$LOG_FILE"
-						echo "Move file to $OVER_THRESHOLD_PATH"
+						echo "Move file to $(echo $(basename "$OVER_THRESHOLD_PATH"))"
 					else
 						UNDER_THRESHOLD_COUNT=$((UNDER_THRESHOLD_COUNT + 1))
 						move_zip_file "$ZIP_FILE" "$UNDER_THRESHOLD_PATH" "$LOG_FILE"
-						echo "Move file to $UNDER_THRESHOLD_PATH"
+						echo "Move file to $(echo $(basename "$UNDER_THRESHOLD_PATH"))"
 					fi
 				else
 					echo "Invalid zip file (corrupted or unreadable)"
 					INVALID_ZIP=$((INVALID_ZIP + 1))
 					move_fail_folder "$ZIP_FILE" "$FAIL_PATH" "$LOG_FILE"
+					echo "Move file to $(echo $(basename "$FAIL_PATH"))"
 				fi
 				echo "["$(date +"%m-%d-%Y %T %Z")"] Finish compress" >>"$LOG_FILE"
 				echo "========== COMPRESS INFO END ==========" >>"$LOG_FILE"
@@ -191,16 +205,9 @@ zip_execute() {
 
 			echo "Log file : $LOG_FILE"
 			echo
+			rm -rf "$lock_file"
 		fi
 	done
-}
-
-is_script_running(){
-	if [ -f "$LOCK_FILE" ]; then
-		return 0 #true
-	else
-		return 1 #false
-	fi
 }
 
 ################################################################################
@@ -209,12 +216,9 @@ is_script_running(){
 main() {
 	echo "Script version : $_VERSION"
 	# Check the script is running or not
-	if is_script_running; then
-		echo "Previous script is still running.Stop processing!"
-		return
+	if [[ $clear_lock == "YES" ]]; then
+		rm -rf /tmp/*_zip2021.lock
 	fi
-
-	touch "$LOCK_FILE"
 	for i in "${ROOT_PATH[@]}"; do
 		echo "===> Zipbot start "
 		echo "Working directory:" $i 
@@ -223,7 +227,6 @@ main() {
 		echo
 	done
 
-	rm -rf "$LOCK_FILE"
 	echo
 	echo "=============="
 	echo "Total folder zipped : " $((TOTAL_DIR - FALSE_DIR))
