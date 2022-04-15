@@ -1,6 +1,6 @@
 #!/bin/bash
 
-_VERSION="ZipFolder - 1.5"
+_VERSION="ZipFolder - 1.6"
 
 # Root directory needed to run zip command
 ROOT_PATH=(
