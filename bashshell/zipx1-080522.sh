@@ -1,40 +1,46 @@
 #!/bin/bash
 ###################################################################
-#Script Name    : FolderProcessing01
+#Script Name    :ZipX - 1
 #Description    : 
 #Version        : 1.0
 #Notes          : None
 ###################################################################
 
-_VERSION="FolderProcessing01 - 1.0"
+_VERSION="ZipX1 - 1.0"
+
+###################################################################
 
 
-#Root directory needed to run zip command
+# Watchfolder
+# Add more folders on more lines - no comma in between folder paths
 ROOT_PATH=(
-    "/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus"
+    "/mnt/ajplus/Pipeline/_ARCHIVE_IN_DMV"
 )
 
-# Directory hold unsuccesful zip folder
+# Subfolder for folders that failed to zip
 FAIL_PATH="/mnt/ajplus/Admin/CMS/zipX/Failed/"
 
-# Log folder store application running log, report log
-LOG_PATH="/mnt/ajplus/Admin/"
+# Logs subfolder
+LOG_PATH="/mnt/ajplus/Admin/CMS/zipX/Logs/"
 
-#back up folder
+# local subfolder archive for original folders
+# this folder requires local clean up policy
 BACKUP_DIR="/mnt/ajplus/_OUT_Box/Zip_7day_Archive/"
 
-#upload folder 1 (zip under 750gb)
+#upload folder 1 (zip under threshold)
 UPLOAD_DMV_UNDER="/mnt/ajplus/Admin/CMS/Upload_To_DMV_1/"
 
-#upload folder 2 (zip over 750gb)
-UPLOAD_DMV_OVER="/mnt/ajplus/Admin/CMS/Upload_To_DMV_2/"
+# watch folder for large folders
+# to be processed by ZipX2
+UPLOAD_DMV_OVER="/mnt/ajplus/Admin/CMS/zipX/Threshold/"
 
 #This folder stores all folders that have size small than threshold size
-DELETED_DIR="/mnt/restore/__DEL/"
+# this folder requires local clean up policy
+DELETED_DIR="/mnt/ajplus/Admin/CMS/zipX/DEL"
 
-# deleted folder size threshold value (equivalent to bytes)
-# input folder with size smaller than the threshold will be deleted
-FOLDER_SIZE_THRESHOLD=$((50 * 1024 * 1024)) #50Mb
+# Folders under threshold will be processed (equivalent to bytes)
+# Folders over threshold will be moved for another script to process
+FOLDER_SIZE_THRESHOLD=$((2 * 1024 * 1024 * 1024)) #500 GiB
 # FOLDER_SIZE_THRESHOLD=$((750 * 1024 * 1024 * 1024 * 1024)) #750GiB
 
 TOTAL_FOLDER=0
@@ -127,14 +133,6 @@ main(){
         return
     fi
 
-    # Move MP4 file to delete folder
-    mp4_files_count=$(ls -S "$ROOT_PATH" | egrep '\.mp4$|\.MP4$' | wc -l)
-    echo "Found $mp4_files_count mp4 files at root folder"
-    if [ $mp4_files_count -gt 0 ]; then
-        echo "Moving mp4 files to: $(echo $(basename "$DELETED_DIR"))"
-        find "$ROOT_PATH" -maxdepth 1 -type f -iname "*.mp4"  -print0 | xargs -0 mv -ft "$DELETED_DIR" 2>/dev/null
-    fi
-
     echo
     # Move ZIP file to terget folder
     zip_files_count=$(ls -S "$ROOT_PATH" | egrep '\.zip$|\.Zip$|\.ZIP$' | wc -l)
@@ -157,6 +155,15 @@ main(){
                 mv -f "$z_file" "$UPLOAD_DMV_UNDER"
             fi
         done <<<"$zip_files"
+    fi
+
+    echo
+    # Move other files to delete folder
+    other_files_count=$(find "$ROOT_PATH" -maxdepth 1 -type f | wc -l)
+    echo "Found $other_files_count other files at root folder"
+    if [ $other_files_count -gt 0 ]; then
+        echo "Moving files to: $(echo $(basename "$DELETED_DIR"))"
+        find "$ROOT_PATH" -maxdepth 1 -type f  -print0 | xargs -0 mv -ft "$DELETED_DIR" 2>/dev/null
     fi
 
     # Zip all available folders in watch folder that folder size is under threshold

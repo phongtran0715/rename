@@ -1,31 +1,32 @@
 #!/bin/bash
 ###################################################################
-#Script Name    : FolderProcessing02
+#Script Name    :ZipX - 2
 #Description    : 
-# - zip folders in watch folder
-# - write foldername.txt with contents of each zip file separately
-# - move zipped file to upload folder 2
-# - move original folder to archive folder and change timestamp for folder and all files to current time
-# - write overall log and end script
 #Version        : 1.0
 #Notes          : None
 ###################################################################
 
+_VERSION="ZipX2 - 1.0"
+
+###################################################################
+
+
 _VERSION="FolderProcessing02 - 1.0"
 
 
-#Root directory needed to run zip command
+# Watchfolder
 ROOT_PATH=(
-    "/mnt/ajplus/Pipeline/_ARCHIVE_INDVCMS/ajplus"
+    "/mnt/ajplus/Admin/CMS/zipX/Threshold"
 )
 
-# Log folder store application running log, report log
-LOG_PATH="/mnt/ajplus/Admin/"
+# Logs subfolder
+LOG_PATH="/mnt/ajplus/Admin/CMS/zipX/Logs/"
 
-#back up folder
+# local subfolder archive for original folders
+# this folder requires local clean up policy
 BACKUP_DIR="/mnt/ajplus/_OUT_Box/Zip_7day_Archive/"
 
-#upload folder
+#upload folder 2 (zip over threshold)
 UPLOAD_DMV="/mnt/ajplus/Admin/CMS/Upload_To_DMV_2/"
 
 TOTAL_FOLDER=0
